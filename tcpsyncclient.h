@@ -10,17 +10,20 @@
 #include <boost/enable_shared_from_this.hpp>
 
 using namespace boost::placeholders;
+using boost::system::error_code;
 
 class TcpSyncClient
 {
 public:
-    TcpSyncClient(std::string a, std::string p);
+    TcpSyncClient(boost::asio::ip::tcp::endpoint, boost::asio::io_service&);
 
 private:
-    void displayConfig();
+    template <typename T>
+    void log(T);
+    size_t read_complete(char*, const error_code&, size_t);
 
-    std::string m_address;
-    std::string m_port;
+    boost::asio::ip::tcp::endpoint m_ep;
+    boost::asio::ip::tcp::socket m_sock;
 };
 
 #endif // TCPSYNCCLIENT_H

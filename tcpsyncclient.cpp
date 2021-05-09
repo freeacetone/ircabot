@@ -1,12 +1,23 @@
 #include "tcpsyncclient.h"
 
-TcpSyncClient::TcpSyncClient(std::string a, std::string p) : m_address(a), m_port(p)
+TcpSyncClient::TcpSyncClient(boost::asio::ip::tcp::endpoint ep, boost::asio::io_service& service) :
+    m_ep(ep), m_sock(service)
 {
-    this->displayConfig();
+    log(ep.address().to_string());
+    log(ep.port());
+
+    // m_sock.connect(ep);
+
 }
 
-void TcpSyncClient::displayConfig()
+template <typename T>
+void TcpSyncClient::log(T message)
 {
-    std::cout << "Address: " << m_address << std::endl;
-    std::cout << "Port: " << m_port << std::endl;
+    std::cout << "[TSC] " << message << std::endl;
+}
+
+size_t TcpSyncClient::read_complete(char * buf, const error_code & err, size_t bytes) {
+    if ( err) return 0;
+    bool found = std::find(buf, buf + bytes, '\n') < buf + bytes;
+    return found ? 0 : 1;
 }

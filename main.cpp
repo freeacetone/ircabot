@@ -11,6 +11,10 @@ int main(int argc, char * argv[])
     if (argc < 2) usage( std::string(argv[0]));
 
     boost::asio::io_service service;
-    TcpSyncClient( std::string(argv[1]), std::string(argv[2]));
+    boost::asio::ip::tcp::endpoint ep(
+                boost::asio::ip::address::from_string(
+                    std::string(argv[1])), std::stoi(std::string(argv[2])) );
+
+    TcpSyncClient(ep, service);
     return 0;
 }
