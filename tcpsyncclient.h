@@ -15,13 +15,18 @@ using boost::system::error_code;
 class TcpSyncClient
 {
 public:
-    TcpSyncClient(boost::asio::ip::tcp::endpoint, boost::asio::io_service&);
+    TcpSyncClient(boost::asio::ip::tcp::endpoint, boost::asio::io_service&, const std::string);
 
 private:
     template <typename T>
     void log(T);
+    bool connect_to_server();
     size_t read_complete(char*, const error_code&, size_t);
 
+    int m_already_read;
+    bool m_started;
+    char m_buff[1024]; // Буффер 1Кб
+    std::string m_channel;
     boost::asio::ip::tcp::endpoint m_ep;
     boost::asio::ip::tcp::socket m_sock;
 };
