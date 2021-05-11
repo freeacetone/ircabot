@@ -1,11 +1,21 @@
 #include <iostream>
+#include <thread>
 #include "tcpsyncclient.h"
 
 boost::asio::io_service service;
+TcpSyncClient * volatile tsc = nullptr;
+std::string channel;
+boost::asio::ip::tcp::endpoint ep;
 
 void usage(std::string path)
 {
-    std::cout << "Usage:\n" << path << " <address> <port> <#channel>" << std::endl;
+    std::cout << "IRC abot usage:\n" << path << " <address> <port> <#channel>" << std::endl;
+}
+
+void make_tsc()
+{
+    tsc = new TcpSyncClient(ep, service, channel);
+    tsc->loop();
 }
 
 int main(int argc, char * argv[])
@@ -16,19 +26,20 @@ int main(int argc, char * argv[])
         return -1;
     }
 
-    std::string address(argv[1]);
-    std::string port(argv[2]);
-    std::string channel(argv[3]);
-
+    channel = std::string(argv[3]);
     if (argv[3][0] != '#') {
         std::cerr << "Incorrect channel name. Maybe '#" << channel << "'?" << std::endl;
         return -2;
     }
 
-    try { // Проверка переданных адрес:порт
-    boost::asio::ip::tcp::endpoint ep(
+    std::string address(argv[1]);
+    std::string port(argv[2]);
+
+    try {
+    boost::asio::ip::tcp::endpoint e(
                 boost::asio::ip::address::from_string(
                     address), std::stoi(port) );
+    ep = e;
 
     } catch (boost::system::system_error & err) {
         std::cerr << err.what() << ": " << address << " / "
@@ -36,11 +47,18 @@ int main(int argc, char * argv[])
         return -3;
     }
 
-////// Начало работы
-    boost::asio::ip::tcp::endpoint ep(
-                boost::asio::ip::address::from_string(
-                    address), std::stoi(port) );
-    TcpSyncClient socket(ep, service, channel);
+//////
+    std::thread connection(make_tsc);
 
+    while (tsc == nullptr) std::this_thread::sleep_for(std::chrono::seconds(1));
+
+    while(true) {
+        if(tsc->to_read) {
+            std::string msg = tsc->get_msg();
+            tsc->write_to_channel("[REPLY] " + msg);
+        }
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+    connection.join();
     return 0;
 }

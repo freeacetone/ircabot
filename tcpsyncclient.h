@@ -19,8 +19,10 @@ class TcpSyncClient
 public:
     TcpSyncClient(boost::asio::ip::tcp::endpoint, boost::asio::io_service&, const std::string);
     bool write(std::string);
-
-    bool started;
+    bool write_to_channel(std::string);
+    std::string get_msg();
+    void loop();
+    bool to_read;
 
 private:
     template <typename T>
@@ -29,7 +31,6 @@ private:
     size_t read_complete(const error_code&, size_t);
     void read_answer();
     void process_msg();
-    void loop();
 
     int m_already_read;
     char m_buff[1024]; // Буффер 1Кб
@@ -38,7 +39,8 @@ private:
 
     std::string m_channel;
     void answer_to_ping(std::string);
-    bool connect_to_server();
+    void connect_to_server();
+    std::string m_buffer;
 };
 
 #endif // TCPSYNCCLIENT_H
