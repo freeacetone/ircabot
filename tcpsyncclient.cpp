@@ -144,10 +144,18 @@ void TcpSyncClient::process_msg()
         while (m_raw[0] == ' ') m_raw = m_raw.substr(1);
         while (m_raw[m_raw.size() - 1] == '\n') m_raw.pop_back();
 
+        if (m_raw.find("ACTION") == 0) {
+            m_raw = "-" + m_raw.substr(7);
+            while (m_raw.find('') != std::string::npos) m_raw.pop_back();
+            m_raw += " -\n";
+        }
+
+        to_raw = true;
+
         if (m_raw[0] == '.') {
-            if (m_raw[1] == '.') m_raw_nickname = "";
+            if (m_raw[1] == '.') to_raw = false; // Максимальная анонимность, нет лога
             m_raw = "**blinded message**\n";
         }
-        to_raw = true;
+
     }
 }
