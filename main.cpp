@@ -64,7 +64,7 @@ void make_tsc()
 
 int main(int argc, char * argv[])
 {
-//// Проверка переданных данных
+//// Проверка переданных параметров
     if (argc < 5) {
         usage( std::string(argv[0]));
         return 1;
