@@ -3,7 +3,11 @@
 template <typename T>
 void TcpSyncClient::log(T message)
 {
+#ifdef WIN32
+    std::cout << "[TSC] " << message;
+#else
     std::cout << "[TSC] " << message << std::endl;
+#endif
 }
 
 TcpSyncClient::TcpSyncClient(boost::asio::ip::tcp::endpoint ep, boost::asio::io_service& s,

@@ -64,16 +64,16 @@ void make_tsc()
 
 int main(int argc, char * argv[])
 {
-////// Проверка переданных данных
+//// Проверка переданных данных
     if (argc < 5) {
+        std::cout << argc << std::endl;
         usage( std::string(argv[0]));
-        return -1;
+        return 1;
     }
 
     channel = std::string(argv[3]);
     if (argv[3][0] != '#') {
-        std::cerr << "Incorrect channel name. Maybe '#" << channel << "'?" << std::endl;
-        return -2;
+        channel = "#" + channel;
     }
 
     std::string address(argv[1]);
@@ -88,7 +88,7 @@ int main(int argc, char * argv[])
     } catch (boost::system::system_error & err) {
         std::cerr << err.what() << ": " << address << " / "
                   << port << std::endl;
-        return -3;
+        return 3;
     }
 
     nick = std::string(argv[4]);
@@ -118,5 +118,5 @@ int main(int argc, char * argv[])
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
     connection.join();
-    return -4; // Выход по обрыву цикла
+    return 4; // Выход по обрыву цикла
 }
