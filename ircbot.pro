@@ -12,6 +12,7 @@ HEADERS += \
 
 LIBS += \
         -lboost_system-mt \
+        -lboost_filesystem-mt \
         -lws2_32 \
         -lpthread
 

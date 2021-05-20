@@ -102,7 +102,6 @@ void TcpSyncClient::connect_to_server()
     read_answer();
     if(m_password != "") {
         write("PRIVMSG NICKSERV IDENTIFY " + m_password);
-        read_answer();
     }
     write("JOIN " + m_channel);
 }
@@ -127,9 +126,9 @@ void TcpSyncClient::process_msg()
     log("[MSG] " + msg);
     if (msg.find("PING :") == 0) answer_to_ping(msg.substr(6));
 
-    if (msg.find("JOIN :" + m_channel) != std::string::npos && msg.find(m_mynick) == std::string::npos) {
+    /* if (msg.find("JOIN :" + m_channel) != std::string::npos && msg.find(m_mynick) == std::string::npos) {
         write_to_channel(msg.substr(1, msg.find('!') - 1) + ", welcome to " + m_channel + "!");
-    }
+    } */
 
     // Парсинг сообщений, адресованных боту. Сохраняет ник отправителя и текст.
     if (msg.find("PRIVMSG " + m_channel + " :" + m_mynick) != std::string::npos)
@@ -140,12 +139,13 @@ void TcpSyncClient::process_msg()
         to_read = true;
     }
 
-    // Парсинг всех сообщений на канале
+    // Парсинг всех сообщений на канале. Сохраняет ник отправителя и текст.
     else if (msg.find("PRIVMSG " + m_channel + " :") != std::string::npos &&
                                        msg.find(m_mynick) == std::string::npos)
     {
         m_raw = msg.substr(msg.find(m_channel + " :") + 2 + m_channel.size() );
         while (m_raw[0] == ' ') m_raw = m_raw.substr(1);
+        while (m_raw[m_raw.size() - 1] == '\n') m_raw.pop_back();
         m_raw_nickname = msg.substr(1, msg.find('!') - 1);
         to_raw = true;
     }
