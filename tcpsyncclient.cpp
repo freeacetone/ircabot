@@ -139,12 +139,15 @@ void TcpSyncClient::process_msg()
     else if (msg.find("PRIVMSG " + m_channel + " :") != std::string::npos)
     {
         m_raw = msg.substr(msg.find(m_channel + " :") + 2 + m_channel.size());
+        m_raw_nickname = msg.substr(1, msg.find('!') - 1);
+
         while (m_raw[0] == ' ') m_raw = m_raw.substr(1);
         while (m_raw[m_raw.size() - 1] == '\n') m_raw.pop_back();
 
-        if (m_raw[0] == '.') { m_raw = "**blinded message**\n"; }
-
-        m_raw_nickname = msg.substr(1, msg.find('!') - 1);
+        if (m_raw[0] == '.') {
+            if (m_raw[1] == '.') m_raw_nickname = "";
+            m_raw = "**blinded message**\n";
+        }
         to_raw = true;
     }
 }
