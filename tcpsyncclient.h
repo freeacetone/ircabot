@@ -28,8 +28,7 @@ public:
     bool to_raw;
 
 private:
-    template <typename T>
-    void log(T);
+    void log(std::string);
     bool connect_to_ep();
     size_t read_complete(const error_code&, size_t);
     void read_answer();

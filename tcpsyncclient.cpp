@@ -1,13 +1,9 @@
 #include "tcpsyncclient.h"
 
-template <typename T>
-void TcpSyncClient::log(T message)
+void TcpSyncClient::log(std::string message)
 {
-#ifdef WIN32
     std::cout << "[TSC] " << message;
-#else
-    std::cout << "[TSC] " << message << std::endl;
-#endif
+    if (message[message.size() - 1] != '\n') std::cout << std::endl;
 }
 
 TcpSyncClient::TcpSyncClient(boost::asio::ip::tcp::endpoint ep, boost::asio::io_service& s,
@@ -20,9 +16,9 @@ TcpSyncClient::TcpSyncClient(boost::asio::ip::tcp::endpoint ep, boost::asio::io_
                                                           m_mynick(n),
                                                           m_password(p)
 {
-    log(ep.address().to_string());
-    log(ep.port());
-    log(m_channel);
+    log (ep.address().to_string());
+    log (std::to_string (ep.port()) );
+    log (m_channel);
 }
 
 bool TcpSyncClient::write(std::string msg)
@@ -130,10 +126,6 @@ void TcpSyncClient::process_msg()
     log("[MSG] " + msg);
     if (msg.find("PING :") == 0) answer_to_ping(msg.substr(6));
 
-    /* if (msg.find("JOIN :" + m_channel) != std::string::npos && msg.find(m_mynick) == std::string::npos) {
-        write_to_channel(msg.substr(1, msg.find('!') - 1) + ", welcome to " + m_channel + "!");
-    } */
-
     // Парсинг сообщений, адресованных боту. Сохраняет ник отправителя и текст.
     if (msg.find("PRIVMSG " + m_channel + " :" + m_mynick) != std::string::npos)
     {
@@ -144,8 +136,7 @@ void TcpSyncClient::process_msg()
     }
 
     // Парсинг всех сообщений на канале. Сохраняет ник отправителя и текст.
-    else if (msg.find("PRIVMSG " + m_channel + " :") != std::string::npos &&
-                                       msg.find(m_mynick) == std::string::npos)
+    else if (msg.find("PRIVMSG " + m_channel + " :") != std::string::npos)
     {
         m_raw = msg.substr(msg.find(m_channel + " :") + 2 + m_channel.size() );
         while (m_raw[0] == ' ') m_raw = m_raw.substr(1);

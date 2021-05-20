@@ -26,13 +26,13 @@ int write_log(std::string msg)
 
     std::ofstream out;
 
-    if (boost::filesystem::exists("/usr/share/kiwiirc/irc-log")) // unix, продакшен
+    if (boost::filesystem::exists("/var/www/html/doc/irc-log")) // unix, продакшен
     {
-        if (! boost::filesystem::exists("/usr/share/kiwiirc/irc-log/" + year + "/" + month))
+        if (! boost::filesystem::exists("/var/www/html/doc/irc-log/" + year + "/" + month))
         {
-            boost::filesystem::create_directories("/usr/share/kiwiirc/irc-log/" + year + "/" + month);
+            boost::filesystem::create_directories("/var/www/html/doc/irc-log/" + year + "/" + month);
         }
-        out.open("/usr/share/kiwiirc/irc-log/" + year + "/" + month + "/" + day + ".txt", std::ios::app);
+        out.open("/var/www/html/doc/irc-log/" + year + "/" + month + "/" + day + ".txt", std::ios::app);
         if (! out.is_open()) return 1;
     }
     else if (boost::filesystem::exists("D:\\irc-log")) // win, тесты
@@ -103,10 +103,9 @@ int main(int argc, char * argv[])
         if(tsc->to_read) { // Есть сообщения, адресованные боту
             std::string msg = tsc->get_msg();
             if(msg != ERROR_START_FAILED) {
-                tsc->write_to_channel(tsc->get_msg_nick() + ", лог чата: " +
-                                                            "http://irc.acetone.i2p/irc-log || " +
-                                                            "http://[324:9de3:fea4:f6ac::41]/irc-log || " +
-                                                            "http://ilitafrzzgxymv6umx2ux7kbz3imyeko6cnqkvy4nisjjj4qpqkrptid.onion/irc-log");
+                tsc->write_to_channel(tsc->get_msg_nick() + ", лог чата: http://acetone.i2p/doc/irc-log/ #" +
+                                                            " http://[324:9de3:fea4:f6ac::ace]/doc/irc-log/ #" +
+                                                            " http://acetonemadzhxzi2e5tomavam6xpucdfwn2g35vrsz6izgaxv5bmuhad.onion/doc/irc-log/");
             }
             else break;
         }
