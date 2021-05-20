@@ -66,7 +66,6 @@ int main(int argc, char * argv[])
 {
 //// Проверка переданных данных
     if (argc < 5) {
-        std::cout << argc << std::endl;
         usage( std::string(argv[0]));
         return 1;
     }

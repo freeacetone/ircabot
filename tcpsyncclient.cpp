@@ -138,9 +138,13 @@ void TcpSyncClient::process_msg()
     // Парсинг всех сообщений на канале. Сохраняет ник отправителя и текст.
     else if (msg.find("PRIVMSG " + m_channel + " :") != std::string::npos)
     {
-        m_raw = msg.substr(msg.find(m_channel + " :") + 2 + m_channel.size() );
-        while (m_raw[0] == ' ') m_raw = m_raw.substr(1);
-        while (m_raw[m_raw.size() - 1] == '\n') m_raw.pop_back();
+        if (msg.find(m_mynick) != msg.size() - m_mynick.size() - 2) {
+            m_raw = msg.substr(msg.find(m_channel + " :") + 2 + m_channel.size() );
+            while (m_raw[0] == ' ') m_raw = m_raw.substr(1);
+            while (m_raw[m_raw.size() - 1] == '\n') m_raw.pop_back();
+        }
+        else { m_raw = "**blinded message**"; }
+
         m_raw_nickname = msg.substr(1, msg.find('!') - 1);
         to_raw = true;
     }
