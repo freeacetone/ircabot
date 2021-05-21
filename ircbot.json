@@ -10,7 +10,12 @@
 
     "handler":
     {
+        "logpath": "D:\\irc-log",
         "admin":   "acetone",
-        "logpath": "D:\\irc-log"
+        "help":    "Доступные команды: 'лог' или 'ссылки'.",
+
+        "ссылки":  "лог чата: http://acetone.i2p/doc/irc-log/ # http://[324:9de3:fea4:f6ac::ace]/doc/irc-log/ # http://acetonemadzhxzi2e5tomavam6xpucdfwn2g35vrsz6izgaxv5bmuhad.onion/doc/irc-log/",
+        "лог":     "лог чата: http://acetone.i2p/doc/irc-log/ # http://[324:9de3:fea4:f6ac::ace]/doc/irc-log/ # http://acetonemadzhxzi2e5tomavam6xpucdfwn2g35vrsz6izgaxv5bmuhad.onion/doc/irc-log/",
+        "русский": "гордо"
     }
 }

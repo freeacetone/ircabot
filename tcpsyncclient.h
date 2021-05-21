@@ -13,7 +13,6 @@
 #include <boost/property_tree/json_parser.hpp>
 
 using boost::system::error_code;
-const std::string ERROR_START_FAILED = "/as/xk]1pduJfnskAZDD";
 
 class TcpSyncClient
 {

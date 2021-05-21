@@ -30,10 +30,7 @@ bool read_config()
     {
         for (size_t i = 0; i < conf.size(); ++i)
         {
-            if (conf[child.first] != "")
-            {
-                conf[child.first] = child.second.get_value<std::string>();
-            }
+             conf[child.first] = child.second.get_value<std::string>();
         }
     }
     return true;
@@ -102,37 +99,52 @@ void make_tsc()
     if (tsc != nullptr) delete tsc;
 }
 
-int main(int argc, char * argv[])
+void handler()
 {
-    if (argc >= 2) config_file = static_cast<std::string>(argv[1]);
-
-    if (!read_config()) return 1;
-
-    std::thread connection(make_tsc);
-
     if (!tsc_created) std::this_thread::sleep_for(std::chrono::seconds(1));
+    bool handled = false;
 
     while (true) {
         if(tsc->to_read) { // Есть сообщения, адресованные боту
             std::string msg = tsc->get_msg();
-            if(msg != ERROR_START_FAILED) {
-                tsc->write_to_channel(tsc->get_msg_nick() +
-                                      ", лог чата: http://acetone.i2p/doc/irc-log/ #" +
-                                      " http://[324:9de3:fea4:f6ac::ace]/doc/irc-log/ #" +
-                                      " http://acetonemadzhxzi2e5tomavam6xpucdfwn2g35vrsz6izgaxv5bmuhad.onion/doc/irc-log/");
+
+            handled = false;
+            for(auto value: conf)
+            {
+                if (msg.find(value.first) != std::string::npos)
+                {
+                    tsc->write_to_channel(tsc->get_msg_nick() + ", " + value.second);
+                    handled = true;
+                    break;
+                }
             }
-            else break;
+            if (!handled) tsc->write_to_channel(tsc->get_msg_nick() + ", " + conf["help"]);
         }
+
         if(tsc->to_raw) { // Все сообщения на канале
             std::string raw = tsc->get_raw();
             int res = write_log ("[" + tsc->get_raw_nick() + "] " + raw);
-            if (res) {
-                tsc->write("PRIVMSG " + conf["admin"] +
-                        " Can't write to log. Error: " + std::to_string(res));
+
+            if (res) { // Сообщение администратору об ошибке логирования
+                std::string report = "PRIVMSG " + conf["admin"] +
+                                                " Can't write to log. ";
+                if (res == 1) report += "Can't open the file.";
+                if (res == 2) report += "Logpath not found.";
+                tsc->write(report);
             }
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
+}
+
+int main(int argc, char * argv[])
+{
+    if (argc >= 2) config_file = static_cast<std::string>(argv[1]);
+    if (!read_config()) return 1;
+
+    std::thread connection(make_tsc);
+    handler();
     connection.join();
-    return 2; // Выход по обрыву цикла
+
+    return 2;
 }
