@@ -1,0 +1,16 @@
+{
+    "socket":
+    {
+        "address":  "324:9de3:fea4:f6ac::41",
+        "port":     "6667",
+        "channel":  "#ddd",
+        "nickname": "botbotbot",
+        "password": "x"
+    },
+
+    "handler":
+    {
+        "admin":   "acetone",
+        "logpath": "D:\\irc-log"
+    }
+}

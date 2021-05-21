@@ -6,19 +6,32 @@ void TcpSyncClient::log(std::string message)
     if (message[message.size() - 1] != '\n') std::cout << std::endl;
 }
 
-TcpSyncClient::TcpSyncClient(boost::asio::ip::tcp::endpoint ep, boost::asio::io_service& s,
-                             const std::string c, const std::string n, const std::string p) :
+TcpSyncClient::TcpSyncClient(boost::asio::io_service& service, std::string config) :
                                                           to_read(false),
                                                           to_raw(false),
-                                                          m_ep(ep),
-                                                          m_sock(s),
-                                                          m_channel(c),
-                                                          m_mynick(n),
-                                                          m_password(p)
+                                                          to_start(false),
+                                                          m_sock(service),
+                                                          m_config_file(config)
 {
-    log (ep.address().to_string());
-    log (std::to_string (ep.port()) );
-    log (m_channel);
+    to_start = read_config();
+    if(to_start)
+    {
+        if (params["channel"][0] != '#') params["channel"] = "#" + params["channel"];
+
+        try {
+        boost::asio::ip::tcp::endpoint e(
+                    boost::asio::ip::address::from_string(
+                        params["address"]), std::stoi(params["port"]) );
+        m_ep = e;
+        } catch (boost::system::system_error & err) {
+            std::cerr << err.what() << ": " << params["address"] << " / "
+                      << params["port"] << std::endl;
+        }
+
+        log (m_ep.address().to_string());
+        log (std::to_string (m_ep.port()));
+        log (params["channel"]);
+    }
 }
 
 bool TcpSyncClient::write(std::string msg)
@@ -35,7 +48,7 @@ bool TcpSyncClient::write(std::string msg)
 
 bool TcpSyncClient::write_to_channel(std::string msg)
 {
-    bool res = write("PRIVMSG " + m_channel + " " + msg);
+    bool res = write("PRIVMSG " + params["channel"] + " " + msg);
     return res;
 }
 
@@ -98,12 +111,12 @@ void TcpSyncClient::answer_to_ping(std::string ping)
 void TcpSyncClient::connect_to_server()
 {
     write("USER " + m_user + " . . :" + m_realname);
-    write("NICK " + m_mynick);
+    write("NICK " + params["nickname"]);
     read_answer();
-    if(m_password != "") {
-        write("PRIVMSG NICKSERV IDENTIFY " + m_password);
+    if(params["password"] != "x") {
+        write("PRIVMSG NICKSERV IDENTIFY " + params["password"]);
     }
-    write("JOIN " + m_channel);
+    write("JOIN " + params["channel"]);
 }
 
 void TcpSyncClient::start()
@@ -115,9 +128,30 @@ void TcpSyncClient::start()
     }
     else {
         log("[START FAILED]");
-        to_read = true;
-        m_msg = ERROR_START_FAILED;
     }
+}
+
+bool TcpSyncClient::read_config()
+{
+    if (!boost::filesystem::exists(m_config_file)) {
+        std::cerr << "Config not found" << std::endl;
+        return false;
+    }
+
+    boost::property_tree::ptree pt;
+    boost::property_tree::read_json(m_config_file, pt);
+
+    for (auto child: pt.get_child("socket"))
+    {
+        for (size_t i = 0; i < params.size(); ++i)
+        {
+            if (params[child.first] != "")
+            {
+                params[child.first] = child.second.get_value<std::string>();
+            }
+        }
+    }
+    return true;
 }
 
 void TcpSyncClient::process_msg()
@@ -127,18 +161,18 @@ void TcpSyncClient::process_msg()
     if (msg.find("PING :") == 0) answer_to_ping(msg.substr(6));
 
     // Парсинг сообщений, адресованных боту. Сохраняет ник отправителя и текст.
-    if (msg.find("PRIVMSG " + m_channel + " :" + m_mynick) != std::string::npos)
+    if (msg.find("PRIVMSG " + params["channel"] + " :" + params["nickname"]) != std::string::npos)
     {
-        m_msg = msg.substr(msg.find(" :" + m_mynick) + 3 + m_mynick.size() );
+        m_msg = msg.substr(msg.find(" :" + params["nickname"]) + 3 + params["nickname"].size() );
         while (m_msg[0] == ' ') m_msg = m_msg.substr(1); // Режу первые пробелы
         m_msg_nickname = msg.substr(1, msg.find('!') - 1);
         to_read = true;
     }
 
     // Парсинг всех сообщений на канале. Сохраняет ник отправителя и текст.
-    else if (msg.find("PRIVMSG " + m_channel + " :") != std::string::npos)
+    else if (msg.find("PRIVMSG " + params["channel"] + " :") != std::string::npos)
     {
-        m_raw = msg.substr(msg.find(m_channel + " :") + 2 + m_channel.size());
+        m_raw = msg.substr(msg.find(params["channel"] + " :") + 2 + params["channel"].size());
         m_raw_nickname = msg.substr(1, msg.find('!') - 1);
 
         while (m_raw[0] == ' ') m_raw = m_raw.substr(1);
@@ -156,6 +190,10 @@ void TcpSyncClient::process_msg()
             if (m_raw[1] == '.') to_raw = false; // Максимальная анонимность, нет лога
             m_raw = "**blinded message**\n";
         }
-
     }
+}
+
+TcpSyncClient::~TcpSyncClient()
+{
+    std::cout << "TcpSyncClient destructed" << std::endl;
 }
