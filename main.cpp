@@ -104,21 +104,30 @@ void handler()
     if (!tsc_created) std::this_thread::sleep_for(std::chrono::seconds(1));
     bool handled = false;
 
-    while (true) {
+    while (true)
+    {
         if(tsc->to_read) { // Есть сообщения, адресованные боту
             std::string msg = tsc->get_msg();
 
-            handled = false;
-            for(auto value: conf)
+            if (tsc->get_msg_nick() == conf["admin"] && (msg.find("reload") == 0)) // Reload
             {
-                if (msg.find(value.first) != std::string::npos)
-                {
-                    tsc->write_to_channel(tsc->get_msg_nick() + ", " + value.second);
-                    handled = true;
-                    break;
-                }
+                if (read_config()) tsc->write_to_channel(conf["reloaded"]);
+                else tsc->write_to_channel("Ошибка.");
             }
-            if (!handled) tsc->write_to_channel(tsc->get_msg_nick() + ", " + conf["help"]);
+            else // Общий обработчик
+            {
+                handled = false;
+                for(auto value: conf)
+                {
+                    if (msg.find(value.first) != std::string::npos)
+                    {
+                        tsc->write_to_channel(tsc->get_msg_nick() + ", " + value.second);
+                        handled = true;
+                        break;
+                    }
+                }
+                if (!handled) tsc->write_to_channel(tsc->get_msg_nick() + ", " + conf["help"]);
+            }
         }
 
         if(tsc->to_raw) { // Все сообщения на канале
