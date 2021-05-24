@@ -4,6 +4,7 @@
 #include <regex>
 #include <algorithm>
 #include <vector>
+#include <map>
 #include <thread>
 #include <boost/filesystem.hpp>
 #include "tcpsyncclient.h"
@@ -25,10 +26,14 @@ std::map<std::string, std::string> conf =
 std::string search(std::string text)
 {
     constexpr int maxSize = 10;
-    uint64_t success = 0;
-    uint64_t found = 0;
-    std::string values;
-    std::vector<std::string> matches;
+    std::string values; // Строка для возврата
+
+    uint64_t success = 0; // Счетчик уникальных вхождений
+    uint64_t total = 0;   // Общий счетчик вхождений
+
+    std::map<std::string, uint64_t> stats; // Линковка даты и ее счетчика
+    std::vector<std::string> matches;      // Значения, компонуемые в итоговую строку
+
     std::regex regex(".*" + text + ".*", std::regex_constants::extended | std::regex_constants::icase);
 
     boost::filesystem::recursive_directory_iterator dir(conf["logpath"]), end;
@@ -42,13 +47,15 @@ std::string search(std::string text)
         {
             if (std::regex_match(buffer, regex))
             {
-                std::string date = buffer.substr(0, buffer.find(' '));
+                ++total;
                 bool first = true;
+                std::string date = buffer.substr(0, buffer.find(' '));
+                stats[date] += 1; // Счетчик конкретной даты
+
                 for (auto entry: matches)
                 {
                     if (entry.find(date) != std::string::npos)
                     {
-                        ++found;
                         first = false;
                     }
                 }
@@ -59,13 +66,19 @@ std::string search(std::string text)
                 }
             }
         }
-        log.close();
 
+        log.close();
     }
+
     if (matches.size() > 0)
     {
+        for (auto it = matches.begin(), end = matches.end(); it != end; ++it)
+        {
+            *it += " (" + std::to_string(stats[*it]) + ")";
+        }
+
         std::sort(matches.begin(), matches.end());
-        values += "(" + std::to_string(found) + ") ";
+        values += "[" + text + ": " + std::to_string(total) + "] ";
 
         for (int i = matches.size()-1, count = 0; i >= 0 && count < maxSize ; --i, ++count)
         { // Компоновка выходной строки
@@ -169,7 +182,7 @@ void make_tsc()
 
 void handler()
 {
-    if (!tsc_created) std::this_thread::sleep_for(std::chrono::seconds(1));
+    if (!tsc_created) std::this_thread::sleep_for(std::chrono::milliseconds(600));
     bool handled = false;
 
     while (true)
@@ -195,7 +208,7 @@ void handler()
                     std::string result = search(target);
                     if (result != "")
                     {
-                        tsc->write_to_channel(tsc->get_msg_nick() + ": " + search(target));
+                        tsc->write_to_channel(search(target));
                     }
                     else tsc->write_to_channel(tsc->get_msg_nick() + ", " + conf["notfound"]);
                 }
