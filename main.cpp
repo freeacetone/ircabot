@@ -2,6 +2,8 @@
 #include <fstream>
 #include <iomanip>
 #include <regex>
+#include <algorithm>
+#include <vector>
 #include <thread>
 #include <boost/filesystem.hpp>
 #include "tcpsyncclient.h"
@@ -22,10 +24,13 @@ std::map<std::string, std::string> conf =
 
 std::string search(std::string text)
 {
+    constexpr int maxSize = 10;
     std::string values;
+    std::vector<std::string> matches;
     std::regex regex(".*" + text + ".*", std::regex_constants::extended | std::regex_constants::icase);
 
     boost::filesystem::recursive_directory_iterator dir(conf["logpath"]), end;
+    uint64_t success = 0;
     for (; dir != end; ++dir)
     {
         if (! boost::filesystem::is_directory(dir->path()))
@@ -37,17 +42,37 @@ std::string search(std::string text)
             {
                 if (std::regex_match(buffer, regex))
                 {
+                    ++success;
                     std::string date = buffer.substr(0, buffer.find(' '));
-                    if (values.find(date) == std::string::npos)
+
+                    bool first = true;
+                    for (auto entry: matches)
                     {
-                        if (values != "") values += ", ";
-                        values += date;
+                        if (entry.find(date) != std::string::npos) first = false;
                     }
+                    if (first) matches.push_back(date);
                 }
             }
+            log.close();
         }
     }
-    if (values != "") values += ".";
+    if (matches.size() > 0)
+    {
+        std::reverse(matches.begin(), matches.end());
+        values += "(" + std::to_string(success) + ") ";
+
+        for (int i = matches.size()-1, count = 0; i >= 0 && count < maxSize ; --i, ++count)
+        { // Компоновка выходной строки
+            if (values.find('-') != std::string::npos) values += ", ";
+            values += matches[i];
+        }
+        if (values != "") values += ".";
+
+        for (auto it = values.begin(), end = values.end(); it != end; ++it)
+        { // Замена тире на слеш
+            if (*it == '-') *it = '/';
+        }
+    }
     return values;
 }
 
