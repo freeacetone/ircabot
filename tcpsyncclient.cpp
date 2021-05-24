@@ -176,7 +176,8 @@ void TcpSyncClient::process_msg()
         m_raw_nickname = msg.substr(1, msg.find('!') - 1);
 
         while (m_raw[0] == ' ') m_raw = m_raw.substr(1);
-        while (m_raw[m_raw.size() - 1] == '\n') m_raw.pop_back();
+        while (m_raw[m_raw.size() - 1] == '\n'||
+               m_raw[m_raw.size() - 1] == '\r') m_raw.pop_back();
 
         if (m_raw.find("ACTION") == 0) {
             m_raw = "-" + m_raw.substr(7);

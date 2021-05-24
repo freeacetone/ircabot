@@ -25,53 +25,61 @@ std::map<std::string, std::string> conf =
 std::string search(std::string text)
 {
     constexpr int maxSize = 10;
+    uint64_t success = 0;
+    uint64_t found = 0;
     std::string values;
     std::vector<std::string> matches;
     std::regex regex(".*" + text + ".*", std::regex_constants::extended | std::regex_constants::icase);
 
     boost::filesystem::recursive_directory_iterator dir(conf["logpath"]), end;
-    uint64_t success = 0;
     for (; dir != end; ++dir)
     {
-        if (! boost::filesystem::is_directory(dir->path()))
+        if (boost::filesystem::is_directory(dir->path())) continue;
+
+        std::string buffer;
+        std::ifstream log(dir->path().c_str());
+        while(getline(log, buffer))
         {
-            std::string buffer;
-            std::ifstream log(dir->path().c_str());
-
-            while(getline(log, buffer))
+            if (std::regex_match(buffer, regex))
             {
-                if (std::regex_match(buffer, regex))
+                std::string date = buffer.substr(0, buffer.find(' '));
+                bool first = true;
+                for (auto entry: matches)
                 {
-                    ++success;
-                    std::string date = buffer.substr(0, buffer.find(' '));
-
-                    bool first = true;
-                    for (auto entry: matches)
+                    if (entry.find(date) != std::string::npos)
                     {
-                        if (entry.find(date) != std::string::npos) first = false;
+                        ++found;
+                        first = false;
                     }
-                    if (first) matches.push_back(date);
+                }
+                if (first)
+                {
+                    matches.push_back(date);
+                    ++success;
                 }
             }
-            log.close();
         }
+        log.close();
+
     }
     if (matches.size() > 0)
     {
         std::sort(matches.begin(), matches.end());
-        values += "(" + std::to_string(success) + ") ";
+        values += "(" + std::to_string(found) + ") ";
 
         for (int i = matches.size()-1, count = 0; i >= 0 && count < maxSize ; --i, ++count)
         { // Компоновка выходной строки
             if (values.find('-') != std::string::npos) values += ", ";
             values += matches[i];
         }
-        if (values != "") values += ".";
 
         for (auto it = values.begin(), end = values.end(); it != end; ++it)
         { // Замена тире на слеш
             if (*it == '-') *it = '/';
         }
+
+        if (success > maxSize) values += "...";
+        else values += ".";
     }
     return values;
 }
@@ -127,7 +135,7 @@ int write_log(std::string msg)
     }
     else return 2;
 
-    out << year << "-" << month << "-" << day << " " << msg;
+    out << year << "-" << month << "-" << day << " " << msg << std::endl;
     out.close();
     return 0;
 }
