@@ -24,6 +24,7 @@ std::map<std::string, std::string> conf =
 {
     { "admin"   , "" },
     { "error"   , "" },
+    { "success" , "" },
     { "logpath" , "" },
     { "find"    , "" },
     { "notfound", "" },
@@ -223,7 +224,7 @@ void handler()
 
             if (tsc->get_msg_nick() == conf["admin"] && (msg.find("reload") == 0)) //// Reload
             {
-                if (read_config()) tsc->write_to_channel(conf["reloaded"]);
+                if (read_config()) tsc->write_to_channel(conf["success"]);
                 else tsc->write_to_channel("Ошибка.");
             }
 
@@ -249,6 +250,7 @@ void handler()
                     {
                         std::string nick = tsc->get_msg_nick();
                         std::string header = date;
+                        tsc->write_to_channel(tsc->get_msg_nick() + ", " + conf["success"]);
                         if (pattern != "") header += " # " + pattern;
                         tsc->write_to_user(nick, "[" + header + "]");
 
