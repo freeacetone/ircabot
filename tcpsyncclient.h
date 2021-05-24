@@ -18,13 +18,14 @@ class TcpSyncClient
 {
 public:
     TcpSyncClient(boost::asio::io_service& s, std::string config);
-    void start();                       // Запуск бота
-    bool write(std::string);            // Написать в сокет
-    bool write_to_channel(std::string); // Написать в целевой чат
-    std::string get_msg();              // Ник сообщения боту
-    std::string get_msg_nick();         // Сообщение боту
-    std::string get_raw();              // Ник сообщения на канале
-    std::string get_raw_nick();         // Сообщение на канале
+    void start();                                 // Запуск бота
+    bool write(std::string);                      // Написать в сокет
+    bool write_to_user(std::string, std::string); // Написать пользователю
+    bool write_to_channel(std::string);           // Написать в целевой чат
+    std::string get_msg();                        // Ник сообщения боту
+    std::string get_msg_nick();                   // Сообщение боту
+    std::string get_raw();                        // Ник сообщения на канале
+    std::string get_raw_nick();                   // Сообщение на канале
     ~TcpSyncClient();
 
     bool to_read; // Индикаторы наличия информации для чтения

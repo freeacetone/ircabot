@@ -14,14 +14,51 @@ std::string config_file = "ircbot.json";
 TcpSyncClient * volatile tsc = nullptr;
 bool tsc_created = false;
 
+#ifdef WIN32
+    std::string slash = "\\";
+#else
+    std::string slash = "/";
+#endif
+
 std::map<std::string, std::string> conf =
 {
     { "admin"   , "" },
+    { "error"   , "" },
     { "logpath" , "" },
     { "find"    , "" },
     { "notfound", "" },
     { "findzero", "" }
 };
+
+std::vector<std::string> search_detail(std::string date, std::string text)
+{
+    std::string year  = date.substr(0, 4);                              // YYYY
+    std::string month = date.substr(year.size()+1, 2);                  // MM
+    std::string day   = date.substr(year.size() + month.size() + 2, 2); // DD
+    std::vector<std::string> result;
+
+    std::cout << "[search_detail()] " << year << " - " << month << " - " << day << " * " << text << " *" << std::endl;
+    std::regex regex;
+    if (text != "") // Нужен не весь лог, а конкретные сообщения
+    {
+        std::regex r(".*" + text + ".*", std::regex_constants::extended | std::regex_constants::icase);
+        regex = r;
+    }
+
+    std::string path = conf["logpath"] + slash + year + slash + month + slash + day + ".txt";
+    if (! boost::filesystem::exists(path)) return result;
+
+    std::ifstream log(path);
+    std::string buffer;
+    while(getline(log, buffer))
+    {
+        if (text == "") result.push_back(buffer);
+        else if (std::regex_match(buffer, regex)) result.push_back(buffer);
+    }
+    log.close();
+
+    return result;
+}
 
 std::string search(std::string text)
 {
@@ -131,12 +168,6 @@ int write_log(std::string msg)
 
     std::ofstream out;
 
-#ifdef WIN32
-    std::string slash = "\\";
-#else
-    std::string slash = "/";
-#endif
-
     if (boost::filesystem::exists(conf["logpath"]))
     {
         if (! boost::filesystem::exists(conf["logpath"] + slash + year + slash + month))
@@ -190,21 +221,47 @@ void handler()
         if(tsc->to_read) { // Есть сообщения, адресованные боту
             std::string msg = tsc->get_msg();
 
-            if (tsc->get_msg_nick() == conf["admin"] && (msg.find("reload") == 0)) // Reload
+            if (tsc->get_msg_nick() == conf["admin"] && (msg.find("reload") == 0)) //// Reload
             {
                 if (read_config()) tsc->write_to_channel(conf["reloaded"]);
                 else tsc->write_to_channel("Ошибка.");
             }
-            else if (msg.find(conf["find"]) == 0) // Поиск
+
+            else if (msg.find(conf["find"]) == 0) //// Поиск
             {
+                std::regex date_check(conf["find"] + " [0-9]{4}.[0-9]{2}.[0-9]{2}.*", std::regex_constants::egrep);
+
                 if (msg.find(' ') == std::string::npos) {
                     tsc->write_to_channel(tsc->get_msg_nick() + ", " + conf["findzero"]);
                 }
 
-                else {
+                else if (std::regex_match(msg, date_check)) { //// Запрос по дате
+                    std::string pattern;
+                    std::string date = msg.substr(conf["find"].size()+1, 10); // 10 == date size
+
+                    if (msg.substr(conf["find"].size()+11).find(' ') != std::string::npos) { // Поиск по слову
+                        pattern = msg.substr(conf["find"].size() + date.size() + 2);
+                    }
+
+                    std::vector<std::string> result = search_detail(date, pattern);
+
+                    if (! result.empty())
+                    {
+                        std::string nick = tsc->get_msg_nick();
+                        std::string header = date;
+                        if (pattern != "") header += " # " + pattern;
+                        tsc->write_to_user(nick, "[" + header + "]");
+
+                        for (auto str: result) // Выдача основного ответа
+                        {
+                            tsc->write_to_user(nick, str);
+                        }
+                    }
+                    else tsc->write_to_channel(tsc->get_msg_nick() + ", " + conf["error"]);
+                }
+
+                else { //// Поиск с минимальной выдачей
                     std::string target = msg.substr(conf["find"].size()+1);
-                    while (target [target .size() - 1] == '\n'||
-                           target [target .size() - 1] == '\r') target.pop_back();
                     std::string result = search(target);
                     if (result != "")
                     {
@@ -213,6 +270,7 @@ void handler()
                     else tsc->write_to_channel(tsc->get_msg_nick() + ", " + conf["notfound"]);
                 }
             }
+
             else // Общий обработчик
             {
                 handled = false;
@@ -234,11 +292,10 @@ void handler()
             int res = write_log ("[" + tsc->get_raw_nick() + "] " + raw);
 
             if (res) { // Сообщение администратору об ошибке логирования
-                std::string report = "PRIVMSG " + conf["admin"] +
-                                                " Can't write to log. ";
+                std::string report = "Can't write to log. ";
                 if (res == 1) report += "Can't open the file.";
                 if (res == 2) report += "Logpath not found.";
-                tsc->write(report);
+                tsc->write_to_user(conf["admin"], report);
             }
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(50));

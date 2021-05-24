@@ -48,8 +48,12 @@ bool TcpSyncClient::write(std::string msg)
 
 bool TcpSyncClient::write_to_channel(std::string msg)
 {
-    bool res = write("PRIVMSG " + params["channel"] + " " + msg);
-    return res;
+    return write("PRIVMSG " + params["channel"] + " " + msg);
+}
+
+bool TcpSyncClient::write_to_user(std::string user, std::string msg)
+{
+    return write("PRIVMSG " + user + " " + msg);
 }
 
 std::string TcpSyncClient::get_msg()
@@ -164,7 +168,8 @@ void TcpSyncClient::process_msg()
     if (msg.find("PRIVMSG " + params["channel"] + " :" + params["nickname"]) != std::string::npos)
     {
         m_msg = msg.substr(msg.find(" :" + params["nickname"]) + 3 + params["nickname"].size() );
-        while (m_msg[0] == ' ') m_msg = m_msg.substr(1); // Режу первые пробелы
+        while (m_msg[0] == ' ') m_msg = m_msg.substr(1);
+        while (m_msg.back() == '\n'|| m_msg.back() == '\r' || m_msg.back() == ' ') m_msg.pop_back();
         m_msg_nickname = msg.substr(1, msg.find('!') - 1);
         to_read = true;
     }
@@ -176,8 +181,7 @@ void TcpSyncClient::process_msg()
         m_raw_nickname = msg.substr(1, msg.find('!') - 1);
 
         while (m_raw[0] == ' ') m_raw = m_raw.substr(1);
-        while (m_raw[m_raw.size() - 1] == '\n'||
-               m_raw[m_raw.size() - 1] == '\r') m_raw.pop_back();
+        while (m_raw.back() == '\n'|| m_raw.back() == '\r' || m_raw.back() == ' ') m_raw.pop_back();
 
         if (m_raw.find("ACTION") == 0) {
             m_raw = "-" + m_raw.substr(7);
