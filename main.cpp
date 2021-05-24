@@ -58,7 +58,7 @@ std::string search(std::string text)
     }
     if (matches.size() > 0)
     {
-        std::reverse(matches.begin(), matches.end());
+        std::sort(matches.begin(), matches.end());
         values += "(" + std::to_string(success) + ") ";
 
         for (int i = matches.size()-1, count = 0; i >= 0 && count < maxSize ; --i, ++count)
