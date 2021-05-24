@@ -182,14 +182,14 @@ void TcpSyncClient::process_msg()
         if (m_raw.find("ACTION") == 0) {
             m_raw = "-" + m_raw.substr(7);
             while (m_raw.find('') != std::string::npos) m_raw.pop_back();
-            m_raw += " -\n";
+            m_raw += " -";
         }
 
         to_raw = true;
 
         if (m_raw[0] == '.') {
             if (m_raw[1] == '.') to_raw = false; // Максимальная анонимность, нет лога
-            m_raw = "**blinded message**\n";
+            m_raw = "**blinded message**";
         }
     }
 }
