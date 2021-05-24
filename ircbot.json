@@ -12,8 +12,13 @@
     {
         "logpath":  "D:\\irc-log",
         "admin":    "acetone",
+
+        "find":     "поиск",
+        "notfound": "ничего не найдено.",
+        "findzero": "а что искать?",
+
         "reloaded": "Конфиг перечитан.",
-        "help":     "доступные команды: 'лог' и 'ссылки'.",
+        "help":     "доступные команды: 'лог', 'поиск' и 'ссылки'.",
 
         "лог":     "лог чата: http://acetone.i2p/doc/irc-log/ # http://[324:9de3:fea4:f6ac::ace]/doc/irc-log/ # http://acetonemadzhxzi2e5tomavam6xpucdfwn2g35vrsz6izgaxv5bmuhad.onion/doc/irc-log/",
         "ссылки":  "123",

@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <iomanip>
+#include <regex>
 #include <thread>
 #include <boost/filesystem.hpp>
 #include "tcpsyncclient.h"
@@ -12,9 +13,43 @@ bool tsc_created = false;
 
 std::map<std::string, std::string> conf =
 {
-    { "admin"  , "x"             },
-    { "logpath", "x"             }
+    { "admin"   , "" },
+    { "logpath" , "" },
+    { "find"    , "" },
+    { "notfound", "" },
+    { "findzero", "" }
 };
+
+std::string search(std::string text)
+{
+    std::string values;
+    std::regex regex(".*" + text + ".*", std::regex_constants::extended | std::regex_constants::icase);
+
+    boost::filesystem::recursive_directory_iterator dir(conf["logpath"]), end;
+    for (; dir != end; ++dir)
+    {
+        if (! boost::filesystem::is_directory(dir->path()))
+        {
+            std::string buffer;
+            std::ifstream log(dir->path().c_str());
+
+            while(getline(log, buffer))
+            {
+                if (std::regex_match(buffer, regex))
+                {
+                    std::string date = buffer.substr(0, buffer.find(' '));
+                    if (values.find(date) == std::string::npos)
+                    {
+                        if (values != "") values += ", ";
+                        values += date;
+                    }
+                }
+            }
+        }
+    }
+    if (values != "") values += ".";
+    return values;
+}
 
 bool read_config()
 {
@@ -114,10 +149,28 @@ void handler()
                 if (read_config()) tsc->write_to_channel(conf["reloaded"]);
                 else tsc->write_to_channel("Ошибка.");
             }
+            else if (msg.find(conf["find"]) == 0) // Поиск
+            {
+                if (msg.find(' ') == std::string::npos) {
+                    tsc->write_to_channel(tsc->get_msg_nick() + ", " + conf["findzero"]);
+                }
+
+                else {
+                    std::string target = msg.substr(conf["find"].size()+1);
+                    while (target [target .size() - 1] == '\n'||
+                           target [target .size() - 1] == '\r') target.pop_back();
+                    std::string result = search(target);
+                    if (result != "")
+                    {
+                        tsc->write_to_channel(tsc->get_msg_nick() + ": " + search(target));
+                    }
+                    else tsc->write_to_channel(tsc->get_msg_nick() + ", " + conf["notfound"]);
+                }
+            }
             else // Общий обработчик
             {
                 handled = false;
-                for(auto value: conf)
+                for (auto value: conf)
                 {
                     if (msg.find(value.first) != std::string::npos)
                     {
