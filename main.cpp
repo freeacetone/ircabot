@@ -22,14 +22,15 @@ bool tsc_created = false;
 
 std::map<std::string, std::string> conf =
 {
-    { "admin"   , "acetone"   },
-    { "error"   , "error"     },
-    { "success" , "success"   },
-    { "logpath" , ""          },
-    { "find"    , "search"    },
-    { "notfound", "not found" },
-    { "findzero", "what?.."   },
-    { "trylater", "try later" }
+    { "admin"   , "acetone"   }, // никнейм админа
+    { "error"   , "error"     }, // сообщение об ошибке
+    { "success" , "success"   }, // сообщение об успехе
+    { "logpath" , ""          }, // директория с логами
+    { "find"    , "search"    }, // команда поиска
+    { "notfound", "not found" }, // поиск не увенчался успехом
+    { "findzero", "what?.."   }, // команда поиска без параметров
+    { "links"   , ""          }, // ссылки на лог (в конце выдачи в ЛС)
+    { "trylater", "try later" }  // "перегрузка, попробуйте позже"
 };
 
 std::mutex mtx;
@@ -62,6 +63,7 @@ void sendVectorToUser()
         }
     }
     tsc->write_to_user(nick, "*** END ***");
+    tsc->write_to_user(nick, conf["links"]);
     --sendVectorToUser_COUNTER;
     std::cout << "sendVectorToUser- " << sendVectorToUser_COUNTER << std::endl;
 }
@@ -73,7 +75,7 @@ std::vector<std::string> search_detail(std::string date, std::string text)
     std::string day   = date.substr(year.size() + month.size() + 2, 2); // DD
     std::vector<std::string> result;
 
-    std::cout << "[search_detail()] " << year << " - " << month << " - " << day << " * " << text << " *" << std::endl;
+    std::cout << "search_detail() " << year << " - " << month << " - " << day << " * " << text << " *" << std::endl;
     std::regex regex;
     if (text != "") // Нужен не весь лог, а конкретные сообщения
     {
@@ -108,6 +110,8 @@ std::string search(std::string text)
     std::vector<std::string> matches;      // Значения, компонуемые в итоговую строку
 
     std::regex regex(".*" + text + ".*", std::regex_constants::basic | std::regex_constants::icase);
+
+    if (! boost::filesystem::exists(conf["logpath"])) return values;
 
     boost::filesystem::recursive_directory_iterator dir(conf["logpath"]), end;
     for (; dir != end; ++dir)
