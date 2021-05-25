@@ -35,7 +35,7 @@ std::map<std::string, std::string> conf =
 std::mutex mtx;
 std::vector<std::string> vectorStringsTransit;
 std::string              vectorNickTransit;
-constexpr unsigned       sendVectorToUser_MAXIMUM = 2;
+constexpr unsigned       sendVectorToUser_MAXIMUM = 3;
 unsigned                 sendVectorToUser_COUNTER = 0;
 void sendVectorToUser()
 {
