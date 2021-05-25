@@ -77,7 +77,7 @@ std::vector<std::string> search_detail(std::string date, std::string text)
     std::regex regex;
     if (text != "") // Нужен не весь лог, а конкретные сообщения
     {
-        std::regex r(".*" + text + ".*", std::regex_constants::extended | std::regex_constants::icase);
+        std::regex r(".*" + text + ".*", std::regex_constants::basic | std::regex_constants::icase);
         regex = r;
     }
 
@@ -107,7 +107,7 @@ std::string search(std::string text)
     std::map<std::string, uint64_t> stats; // Линковка даты и ее счетчика
     std::vector<std::string> matches;      // Значения, компонуемые в итоговую строку
 
-    std::regex regex(".*" + text + ".*", std::regex_constants::extended | std::regex_constants::icase);
+    std::regex regex(".*" + text + ".*", std::regex_constants::basic | std::regex_constants::icase);
 
     boost::filesystem::recursive_directory_iterator dir(conf["logpath"]), end;
     for (; dir != end; ++dir)
@@ -267,7 +267,10 @@ void handler()
             {
                 std::regex date_check(conf["find"] + " [0-9]{4}.[0-9]{2}.[0-9]{2}.*", std::regex_constants::egrep);
 
-                if (msg.find(' ') == std::string::npos) {
+                if (msg.find('*') != std::string::npos) { // Защита от хитрой регулярки
+                    tsc->write_to_channel(tsc->get_msg_nick() + ", " + conf["error"]);
+                }
+                else if (msg.find(' ') == std::string::npos) {
                     tsc->write_to_channel(tsc->get_msg_nick() + ", " + conf["findzero"]);
                 }
 
@@ -275,7 +278,8 @@ void handler()
                     std::string pattern;
                     std::string date = msg.substr(conf["find"].size()+1, 10); // 10 == date size
 
-                    if (msg.substr(conf["find"].size()+11).find(' ') != std::string::npos) { // Поиск по слову
+                    if (msg.substr(conf["find"].size()+11).find(' ') != std::string::npos)
+                    {// Поиск по слову
                         pattern = msg.substr(conf["find"].size() + date.size() + 2);
                     }
 
