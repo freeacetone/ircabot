@@ -61,6 +61,7 @@ void sendVectorToUser()
             tsc->write_to_user(nick, str);
         }
     }
+    tsc->write_to_user(nick, "*** END ***");
     --sendVectorToUser_COUNTER;
     std::cout << "sendVectorToUser- " << sendVectorToUser_COUNTER << std::endl;
 }
