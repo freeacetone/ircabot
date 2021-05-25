@@ -22,14 +22,48 @@ bool tsc_created = false;
 
 std::map<std::string, std::string> conf =
 {
-    { "admin"   , "" },
-    { "error"   , "" },
-    { "success" , "" },
-    { "logpath" , "" },
-    { "find"    , "" },
-    { "notfound", "" },
-    { "findzero", "" }
+    { "admin"   , "acetone"   },
+    { "error"   , "error"     },
+    { "success" , "success"   },
+    { "logpath" , ""          },
+    { "find"    , "search"    },
+    { "notfound", "not found" },
+    { "findzero", "what?.."   },
+    { "trylater", "try later" }
 };
+
+std::mutex mtx;
+std::vector<std::string> vectorStringsTransit;
+std::string              vectorNickTransit;
+constexpr unsigned       sendVectorToUser_MAXIMUM = 2;
+unsigned                 sendVectorToUser_COUNTER = 0;
+void sendVectorToUser()
+{
+    ++sendVectorToUser_COUNTER;
+    mtx.lock();
+    std::vector<std::string> messages = vectorStringsTransit; vectorStringsTransit.clear();
+    std::string nick = vectorNickTransit; vectorNickTransit.clear();
+    mtx.unlock();
+
+    std::cout << "sendVectorToUser+ " << sendVectorToUser_COUNTER << std::endl;
+
+    int messageCounter = 0;
+    for (auto str: messages)
+    {
+        if (messageCounter++ < 20) {
+            tsc->write_to_user(nick, str);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        else {
+            messageCounter = 0;
+            tsc->write_to_user(nick, "buffering...");
+            std::this_thread::sleep_for(std::chrono::seconds(3));
+            tsc->write_to_user(nick, str);
+        }
+    }
+    --sendVectorToUser_COUNTER;
+    std::cout << "sendVectorToUser- " << sendVectorToUser_COUNTER << std::endl;
+}
 
 std::vector<std::string> search_detail(std::string date, std::string text)
 {
@@ -250,13 +284,20 @@ void handler()
                     {
                         std::string nick = tsc->get_msg_nick();
                         std::string header = date;
-                        tsc->write_to_channel(tsc->get_msg_nick() + ", " + conf["success"]);
                         if (pattern != "") header += " # " + pattern;
-                        tsc->write_to_user(nick, "[" + header + "]");
 
-                        for (auto str: result) // Выдача основного ответа
+                        if (sendVectorToUser_COUNTER < sendVectorToUser_MAXIMUM)
                         {
-                            tsc->write_to_user(nick, str);
+                            tsc->write_to_channel(tsc->get_msg_nick() + ", " + conf["success"]);
+                            tsc->write_to_user(nick, "[" + header + "]");
+                            mtx.lock();
+                            vectorStringsTransit = result;
+                            vectorNickTransit = nick;
+                            mtx.unlock();
+                            std::thread (sendVectorToUser).detach();
+                        }
+                        else {
+                            tsc->write_to_channel(tsc->get_msg_nick() + ", " + conf["trylater"]);
                         }
                     }
                     else tsc->write_to_channel(tsc->get_msg_nick() + ", " + conf["error"]);
