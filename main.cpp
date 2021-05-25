@@ -51,6 +51,12 @@ void sendVectorToUser()
     int messageCounter = 0;
     for (auto str: messages)
     {
+        std::string triggerToStop = tsc->get_raw_msg_from_socket();
+        if (triggerToStop.find(":" + nick + "!") == 0 &&
+             triggerToStop.find("PRIVMSG " + tsc->params["nickname"]) != std::string::npos) {
+            break; // Ник появился в стопе
+        }
+
         if (messageCounter++ < 20) {
             tsc->write_to_user(nick, str);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -258,7 +264,7 @@ void handler()
 
     while (true)
     {
-        if(tsc->to_read) { // Есть сообщения, адресованные боту
+        if (tsc->to_read) { // Есть сообщения, адресованные боту
             std::string msg = tsc->get_msg();
 
             if (tsc->get_msg_nick() == conf["admin"] && (msg.find("reload") == 0)) //// Reload
@@ -339,7 +345,7 @@ void handler()
             }
         }
 
-        if(tsc->to_raw) { // Все сообщения на канале
+        if (tsc->to_raw) { // Все сообщения на канале
             std::string raw = tsc->get_raw();
             int res = write_log ("[" + tsc->get_raw_nick() + "] " + raw);
 

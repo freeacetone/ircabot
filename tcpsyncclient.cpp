@@ -80,6 +80,11 @@ std::string TcpSyncClient::get_raw_nick()
     return m_raw_nickname;
 }
 
+std::string TcpSyncClient::get_raw_msg_from_socket()
+{
+    return raw_msg_from_socket;
+}
+
 bool TcpSyncClient::connect_to_ep()
 {
     try {
@@ -163,6 +168,7 @@ void TcpSyncClient::process_msg()
     std::string msg(m_buff, m_already_read);
     log("[MSG] " + msg);
     if (msg.find("PING :") == 0) answer_to_ping(msg.substr(6));
+    raw_msg_from_socket = msg;
 
     // Парсинг сообщений, адресованных боту. Сохраняет ник отправителя и текст.
     if (msg.find("PRIVMSG " + params["channel"] + " :" + params["nickname"]) != std::string::npos)
