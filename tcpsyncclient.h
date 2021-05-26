@@ -26,7 +26,7 @@ public:
     std::string get_msg_nick();                   // Сообщение боту
     std::string get_raw();                        // Ник сообщения на канале
     std::string get_raw_nick();                   // Сообщение на канале
-    std::string get_raw_msg_from_socket();        // Для получения сырого сообщения
+    bool have_pm_from_user(std::string);          // Для получения сырого сообщения
     ~TcpSyncClient();
 
     bool to_read; // Индикаторы наличия информации для чтения

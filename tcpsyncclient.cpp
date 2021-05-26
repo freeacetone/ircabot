@@ -80,9 +80,10 @@ std::string TcpSyncClient::get_raw_nick()
     return m_raw_nickname;
 }
 
-std::string TcpSyncClient::get_raw_msg_from_socket()
+bool TcpSyncClient::have_pm_from_user(std::string nick)
 {
-    return raw_msg_from_socket;
+    return (raw_msg_from_socket.find(":" + nick + "!") == 0 &&
+            raw_msg_from_socket.find("PRIVMSG " + params["nickname"]) != std::string::npos);
 }
 
 bool TcpSyncClient::connect_to_ep()

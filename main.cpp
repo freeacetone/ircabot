@@ -49,12 +49,12 @@ void sendVectorToUser()
     std::cout << "sendVectorToUser+ " << sendVectorToUser_COUNTER << std::endl;
 
     int messageCounter = 0;
+    bool stopped = false;
     for (auto str: messages)
     {
-        std::string triggerToStop = tsc->get_raw_msg_from_socket();
-        if (triggerToStop.find(":" + nick + "!") == 0 &&
-             triggerToStop.find("PRIVMSG " + tsc->params["nickname"]) != std::string::npos) {
-            break; // Ник появился в стопе
+        if (tsc->have_pm_from_user(nick)) { // Ник появился в стопе
+            stopped = true;
+            break;
         }
 
         if (messageCounter++ < 20) {
@@ -63,12 +63,11 @@ void sendVectorToUser()
         }
         else {
             messageCounter = 0;
-            tsc->write_to_user(nick, "buffering...");
-            std::this_thread::sleep_for(std::chrono::seconds(3));
+            std::this_thread::sleep_for(std::chrono::seconds(2));
             tsc->write_to_user(nick, str);
         }
     }
-    tsc->write_to_user(nick, "*** END ***");
+    tsc->write_to_user(nick, stopped ? "*** STOP ***" : "*** END ***");
     tsc->write_to_user(nick, conf["links"]);
     --sendVectorToUser_COUNTER;
     std::cout << "sendVectorToUser- " << sendVectorToUser_COUNTER << std::endl;
