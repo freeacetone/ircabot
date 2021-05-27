@@ -20,6 +20,11 @@ bool tsc_created = false;
     std::string slash = "/";
 #endif
 
+void log(std::string text)
+{
+    std::cout << "[DBG] " << text << std::endl;
+}
+
 std::map<std::string, std::string> conf =
 {
     { "admin"   , "acetone"   }, // никнейм админа
@@ -35,16 +40,18 @@ std::map<std::string, std::string> conf =
 
 std::mutex mtx;
 std::vector<std::string> vectorStringsTransit;
-std::string              vectorNickTransit;
+std::string              stringNickTransit;
 constexpr unsigned       sendVectorToUser_MAXIMUM = 3;
 unsigned                 sendVectorToUser_COUNTER = 0;
 void sendVectorToUser()
 {
-    std::cout << "sendVectorToUser+ " << ++sendVectorToUser_COUNTER << std::endl;
+    log ("sendVectorToUser+ " + std::to_string(++sendVectorToUser_COUNTER));
 
     mtx.lock();
-    std::vector<std::string> messages = vectorStringsTransit; vectorStringsTransit.clear();
-    std::string nick = vectorNickTransit; vectorNickTransit.clear();
+    std::vector<std::string> messages = vectorStringsTransit;
+    vectorStringsTransit.clear();
+    std::string nick = stringNickTransit;
+    stringNickTransit.clear();
     mtx.unlock();  
 
     int messageCounter = 0;
@@ -69,7 +76,7 @@ void sendVectorToUser()
     tsc->write_to_user(nick, stopped ? "*** STOP ***" : "*** END ***");
     tsc->write_to_user(nick, conf["links"]);
 
-    std::cout << "sendVectorToUser- " << --sendVectorToUser_COUNTER << std::endl;
+    log ("sendVectorToUser+ " + std::to_string(--sendVectorToUser_COUNTER));
 }
 
 std::vector<std::string> search_detail(std::string date, std::string text)
@@ -79,7 +86,7 @@ std::vector<std::string> search_detail(std::string date, std::string text)
     std::string day   = date.substr(year.size() + month.size() + 2, 2); // DD
     std::vector<std::string> result;
 
-    std::cout << "search_detail() " << year << " - " << month << " - " << day << " * " << text << " *" << std::endl;
+    log ("search_detail() " + year + "-" + month + "-" + day + " '" + text + "'");
     std::regex regex;
     if (text != "") // Нужен не весь лог, а конкретные сообщения
     {
@@ -305,7 +312,7 @@ void handler()
                             tsc->write_to_user(nick, "[" + header + "]");
                             mtx.lock();
                             vectorStringsTransit = result;
-                            vectorNickTransit = nick;
+                            stringNickTransit = nick;
                             mtx.unlock();
                             std::thread (sendVectorToUser).detach();
                         }
