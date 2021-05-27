@@ -65,8 +65,8 @@ private:
 
     std::string m_config_file = "ircbot.json";
 
-    const std::string m_user = "acetonebot";
-    const std::string m_realname = "IRC bot in C++";
+    const std::string m_user = "ircabot";
+    const std::string m_realname = "https://notabug.org/acetone/ircabot";
 };
 
 #endif // TCPSYNCCLIENT_H

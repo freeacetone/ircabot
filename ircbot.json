@@ -1,26 +1,28 @@
 {
     "socket":
     {
-        "address":  "324:9de3:fea4:f6ac::41",
+        "address":  "127.0.0.1",
         "port":     "6667",
-        "channel":  "#ddd",
-        "nickname": "botbotbot",
-        "password": "x"
+        "channel":  "#ircabot",
+        "nickname": "ircabot",
+        "password": ""
     },
 
     "handler":
     {
-        "logpath":  "D:\\irc-log",
+        "help":     "available functions: 'search' and 'test'.",
+
+        "logpath":  "/var/www/irc-log",
         "admin":    "acetone",
-        "success":  "успешно.",
-        "error":    "ошибка.",
-        "trylater": "попробуйте позже.",
+        "success":  "success :)",
+        "error":    "error :(",
+        "trylater": "try later.",
 
-        "find":     "поиск",
-        "notfound": "ничего не найдено.",
-        "findzero": "краткий поиск: 'поиск <слово>', расширенный поиск с выдачей результата в ЛС: 'поиск <ГГГГ-ММ-ДД> [слово]'.",
-        "links":    "http://acetone.i2p/doc/irc-log/ # http://[324:9de3:fea4:f6ac::ace]/doc/irc-log/ # http://acetonemadzhxzi2e5tomavam6xpucdfwn2g35vrsz6izgaxv5bmuhad.onion/doc/irc-log/",
+        "find":     "search",
+        "notfound": "not found.",
+        "findzero": "quick search: 'search <word>', detailed search with output to PM: 'search <YYYY-MM-DD> [word]'.",
+        "links":    "http://example.domain/irc-log/",
 
-        "help":     "доступные команды: 'поиск'."
+        "test":     "it's work!"
     }
 }
