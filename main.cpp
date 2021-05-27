@@ -188,7 +188,7 @@ std::string search(std::string text)
 bool read_config()
 {
     if (!boost::filesystem::exists(config_file)) {
-        std::cerr << "Config not found" << std::endl;
+        log ("Config not found");
         return false;
     }
 
@@ -237,7 +237,7 @@ int write_log(std::string msg)
 
 void usage(std::string path)
 {
-    std::cout << path << " path/to/config.json" << std::endl;
+    std::cout << "Usage: " << path << " <path/to/config.json>" << std::endl;
 }
 
 void make_tsc()
@@ -367,12 +367,16 @@ void handler()
 
 int main(int argc, char * argv[])
 {
-    if (argc >= 2) config_file = static_cast<std::string>(argv[1]);
-    if (!read_config()) return 1;
+    if (argc > 1) config_file = static_cast<std::string>(argv[1]);
+    else {
+        usage(static_cast<std::string>(argv[0]));
+        return 1;
+    }
+    if (!read_config()) return 2;
 
     std::thread connection(make_tsc);
     handler();
     connection.join();
 
-    return 2;
+    return 3;
 }
