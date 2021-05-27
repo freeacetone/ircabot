@@ -40,13 +40,12 @@ constexpr unsigned       sendVectorToUser_MAXIMUM = 3;
 unsigned                 sendVectorToUser_COUNTER = 0;
 void sendVectorToUser()
 {
-    ++sendVectorToUser_COUNTER;
+    std::cout << "sendVectorToUser+ " << ++sendVectorToUser_COUNTER << std::endl;
+
     mtx.lock();
     std::vector<std::string> messages = vectorStringsTransit; vectorStringsTransit.clear();
     std::string nick = vectorNickTransit; vectorNickTransit.clear();
-    mtx.unlock();
-
-    std::cout << "sendVectorToUser+ " << sendVectorToUser_COUNTER << std::endl;
+    mtx.unlock();  
 
     int messageCounter = 0;
     bool stopped = false;
@@ -69,8 +68,8 @@ void sendVectorToUser()
     }
     tsc->write_to_user(nick, stopped ? "*** STOP ***" : "*** END ***");
     tsc->write_to_user(nick, conf["links"]);
-    --sendVectorToUser_COUNTER;
-    std::cout << "sendVectorToUser- " << sendVectorToUser_COUNTER << std::endl;
+
+    std::cout << "sendVectorToUser- " << --sendVectorToUser_COUNTER << std::endl;
 }
 
 std::vector<std::string> search_detail(std::string date, std::string text)
