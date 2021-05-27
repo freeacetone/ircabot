@@ -10,10 +10,10 @@
 
     "handler":
     {
-        "help":     "available functions: 'search' and 'test'.",
+        "help":     "available functions: 'search' and 'test'. To hide the contents of a message from the log, add a dot at the beginning. So that the message does not get into the log at all - two dots.",
 
         "logpath":  "/var/www/irc-log",
-        "admin":    "acetone",
+        "admin":    "obama",
         "success":  "success :)",
         "error":    "error :(",
         "trylater": "try later.",
