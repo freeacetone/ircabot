@@ -178,7 +178,7 @@ std::string search(std::string text)
             if (*it == '-') *it = '.';
         }
 
-        values += ".";
+        values += "-";
     }
     return values;
 }
