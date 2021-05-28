@@ -280,7 +280,8 @@ void handler()
             {
                 std::regex date_check(conf["find"] + " [0-9]{4}.[0-9]{2}.[0-9]{2}.*", std::regex_constants::egrep);
 
-                if (msg.find('*') != std::string::npos) { // Защита от хитрой регулярки
+                if (msg.find('*') != std::string::npos || msg.find('.') != std::string::npos) {
+                    // Защита от хитрой регулярки
                     tsc->write_to_channel(tsc->get_msg_nick() + ", " + conf["error"]);
                 }
                 else if (msg.find(' ') == std::string::npos) {
