@@ -111,7 +111,6 @@ std::vector<std::string> search_detail(std::string date, std::string text)
 
 std::string search(std::string text)
 {
-    constexpr int maxSize = 10;
     std::string values; // Строка для возврата
 
     uint64_t success = 0; // Счетчик уникальных вхождений
@@ -168,19 +167,18 @@ std::string search(std::string text)
         std::sort(matches.begin(), matches.end());
         values += "[" + text + ": " + std::to_string(total) + "] ";
 
-        for (int i = matches.size()-1, count = 0; i >= 0 && count < maxSize ; --i, ++count)
+        for (int i = matches.size()-1, count = 0; i >= 0; --i, ++count)
         { // Компоновка выходной строки
             if (values.find('-') != std::string::npos) values += ", ";
             values += matches[i];
         }
 
         for (auto it = values.begin(), end = values.end(); it != end; ++it)
-        { // Замена тире на слеш
-            if (*it == '-') *it = '/';
+        { // Замена тире на точку
+            if (*it == '-') *it = '.';
         }
 
-        if (success > maxSize) values += "...";
-        else values += ".";
+        values += ".";
     }
     return values;
 }
@@ -294,7 +292,7 @@ void handler()
                     std::string date = msg.substr(conf["find"].size()+1, 10); // 10 == date size
 
                     if (msg.substr(conf["find"].size()+11).find(' ') != std::string::npos)
-                    {// Поиск по слову
+                    { // Поиск по слову
                         pattern = msg.substr(conf["find"].size() + date.size() + 2);
                     }
 
@@ -328,7 +326,33 @@ void handler()
                     std::string result = search(target);
                     if (result != "")
                     {
-                        tsc->write_to_channel(search(target));
+                        int shift = 0; // Для корректного переноса по сообщениям
+                        constexpr size_t partsize = 350;
+
+                        for (size_t i = 0; i <= result.size() / partsize; ++i)
+                        {
+                            int start = i * partsize;
+
+                            if (shift)
+                            {
+                                start -= shift;
+                                shift = 0;
+                            }
+
+                            if (result.size() > (i+1)*partsize)
+                            {
+                                std::string push = result.substr(start, partsize);
+
+                                while (push.back() != ',') {
+                                    push.pop_back();
+                                    ++shift;
+                                }
+                                tsc->write_to_channel (push);
+                            }
+                            else {
+                                tsc->write_to_channel (result.substr(start));
+                            }
+                        }
                     }
                     else tsc->write_to_channel(tsc->get_msg_nick() + ", " + conf["notfound"]);
                 }
