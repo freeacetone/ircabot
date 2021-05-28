@@ -175,10 +175,10 @@ std::string search(std::string text)
 
         for (auto it = values.begin(), end = values.end(); it != end; ++it)
         { // Замена тире на точку
-            if (*it == '-') *it = '.';
+            if (*it == '-') *it = '-';
         }
 
-        values += "-";
+        values += ".";
     }
     return values;
 }
