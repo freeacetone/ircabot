@@ -128,7 +128,7 @@ void TcpSyncClient::connect_to_server()
     }
     write("JOIN " + params["channel"]);
     read_answer();
-    write("MODE " + m_user + " +B"); // флаг бота
+    write("MODE " + params["nickname"] + " +B"); // флаг бота
 }
 
 void TcpSyncClient::start()
