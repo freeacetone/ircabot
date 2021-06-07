@@ -127,6 +127,7 @@ void TcpSyncClient::connect_to_server()
         write("PRIVMSG NICKSERV IDENTIFY " + params["password"]);
     }
     write("JOIN " + params["channel"]);
+    read_answer();
     write("MODE " + m_user + " +B"); // флаг бота
 }
 
