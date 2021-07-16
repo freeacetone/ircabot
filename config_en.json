@@ -11,6 +11,7 @@
     "handler":
     {
         "help":     "available functions: 'search' and 'test'. To hide the contents of a message from the log, add a dot at the beginning. So that the message does not get into the log at all - two dots.",
+        "minlen":   "4",
 
         "logpath":  "/var/www/irc-log",
         "admin":    "obama",
@@ -21,8 +22,11 @@
         "find":     "search",
         "notfound": "not found.",
         "findzero": "quick search: 'search <word>', detailed search with output to PM: 'search <YYYY-MM-DD> [word]'.",
-        "links":    "http://example.domain/irc-log/",
+        "links":    "http://example.domain/irc-log/"
+    },
 
+    "custom":
+    {
         "test":     "it's work!"
     }
 }
