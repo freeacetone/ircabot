@@ -35,6 +35,7 @@ std::string cFINDZERO; // команда поиска без параметро�
 std::string cLINKS;    // ссылки на лог (в конце выдачи в ЛС)
 std::string cTRYLATER; // "перегрузка, попробуйте позже"
 std::string cHELP;     // подсказка
+uint8_t     cMINLEN;   // минимальная длина искомого слова
 std::map<std::string, std::string> conf;
 std::map<std::string, std::string> custom;
 
@@ -173,11 +174,6 @@ std::string search(std::string text)
             values += matches[i];
         }
 
-        for (auto it = values.begin(), end = values.end(); it != end; ++it)
-        { // Замена тире на точку
-            if (*it == '-') *it = '-';
-        }
-
         values += ".";
     }
     return values;
@@ -197,7 +193,6 @@ bool read_config()
     {
         conf[child.first] = child.second.get_value<std::string>();
     }
-
     cADMIN    = conf["admin"];
     cERROR    = conf["error"];
     cSUCCESS  = conf["success"];
@@ -208,6 +203,7 @@ bool read_config()
     cLINKS    = conf["links"];
     cTRYLATER = conf["trylater"];
     cHELP     = conf["help"];
+    cMINLEN   = std::stoi(conf["minlen"]);
 
     for (auto child: pt.get_child("custom"))
     {
@@ -287,18 +283,20 @@ void handler()
             if (tsc->get_msg_nick() == cADMIN && (msg.find("reload") == 0)) //// Reload
             {
                 if (read_config()) tsc->write_to_channel(cSUCCESS);
-                else tsc->write_to_channel(cERROR);
+                else tsc->write_to_channel(cERROR); // FIXME - падение в случае неудачи
             }
 
             else if (msg.find(cFIND) == 0) //// Поиск
             {
                 std::regex date_check(cFIND + " [0-9]{4}.[0-9]{2}.[0-9]{2}.*", std::regex_constants::egrep);
 
-                if (msg.find('*') != std::string::npos || msg.find('.') != std::string::npos) {
-                    // Защита от хитрой регулярки
-                    tsc->write_to_channel(tsc->get_msg_nick() + ", " + cERROR);
+                if (msg.length() < cFIND.length() + cMINLEN)
+                { // Защита от коротких запросов
+                    tsc->write_to_channel(tsc->get_msg_nick() + ", " + cERROR
+                                          + " (" + std::to_string(cMINLEN) + ")");
                 }
-                else if (msg.find(' ') == std::string::npos) {
+                else if (msg.find(' ') == std::string::npos)
+                { // Пустой запрос (без пробела после ключевого слова поиска)
                     tsc->write_to_channel(tsc->get_msg_nick() + ", " + cFINDZERO);
                 }
 
@@ -369,11 +367,11 @@ void handler()
                             }
                         }
                     }
-                    else tsc->write_to_channel(tsc->get_msg_nick() + ", " + cNOTFOUND);
+                    else tsc->write_to_channel (tsc->get_msg_nick() + ", " + cNOTFOUND);
                 }
             }
 
-            else // Общий обработчик
+            else // Обработчик кастомных ответов
             {
                 handled = false;
                 for (auto value: custom)
