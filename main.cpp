@@ -290,7 +290,7 @@ void handler()
             {
                 std::regex date_check(cFIND + " [0-9]{4}.[0-9]{2}.[0-9]{2}.*", std::regex_constants::egrep);
 
-                if (msg.length() < cFIND.length() + cMINLEN)
+                if (msg.length() < cFIND.length() + cMINLEN + 1)
                 { // Защита от коротких запросов
                     tsc->write_to_channel(tsc->get_msg_nick() + ", " + cERROR
                                           + " (" + std::to_string(cMINLEN) + ")");
