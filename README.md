@@ -8,9 +8,12 @@ Complete rewrite of IRCaBot on Qt6: only the logger and the web UI, nothing else
 - **Storage format is fully compatible with v1/v2**: plain text files
   `data/<server>/<channel>/yyyy/MM/dd.txt` with `[nick] message` lines.
   An existing production data folder is picked up as is, no conversion needed.
-- **Configuration file format is compatible with v1/v2** (`[GLOBAL]` + per-server
-  sections). New optional keys: `ssl = true` (per server, TLS connection to IRC)
-  and `realtime_disabled = true` (alias of the old `AJAXIsDisabled`).
+- **Configuration is plain JSON** (`./ircabot --example config.json` writes
+  a documented template). Top-level keys: `data_path`, `web{}` (address, port,
+  service name/emoji, `realtime_disabled`), `defaults{}` (nick/user/real_name/
+  password for all servers), `triggers{}` (request -> answer) and `servers[]`
+  (name, address, port, optional `ssl`, channels, per-server overrides).
+  Keys starting with `_` are ignored and can be used as comments.
 - **URL scheme is compatible with v1/v2**: old links to
   `/<server>/<channel>/yyyy/MM/dd` (and `.txt`), `/~realtime/...`, `/~images/...`
   keep working.
@@ -58,10 +61,10 @@ cmake --build build -j$(nproc)
 
 ```bash
 # Create a configuration file template:
-./build/ircabot --example ./config.conf
+./build/ircabot --example ./config.json
 
-# Edit config.conf, then:
-./build/ircabot --config ./config.conf
+# Edit config.json, then:
+./build/ircabot --config ./config.json
 ```
 
 ## Install as a service

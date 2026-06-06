@@ -10,6 +10,9 @@
 #include <QDebug>
 #include <QDir>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 #include <stdexcept>
 
@@ -17,101 +20,73 @@ namespace ircabot {
 
 namespace {
 
-struct Section
-{
-    QString name;
-    QMap<QString, QString> values;
-};
-
-QList<Section> tokenize(const QString& text)
-{
-    QList<Section> sections;
-    const QStringList lines = text.split('\n');
-    for (const QString& rawLine : lines) {
-        const QString line = rawLine.trimmed();
-        if (line.isEmpty() || line.startsWith('#') || line.startsWith(';')) {
-            continue;
-        }
-        if (line.startsWith('[') && line.endsWith(']')) {
-            sections.push_back({line.mid(1, line.size() - 2).trimmed(), {}});
-            continue;
-        }
-        const qsizetype eq = line.indexOf('=');
-        if (eq <= 0 || sections.isEmpty()) {
-            continue;
-        }
-        const QString key = line.left(eq).trimmed();
-        const QString value = line.mid(eq + 1).trimmed();
-        if (!key.isEmpty()) {
-            sections.back().values[key] = value;
-        }
-    }
-    return sections;
-}
-
-QMap<QString, QString> parseTriggers(const QString& line, const QString& context)
+QMap<QString, QString> readTriggers(const QJsonObject& obj, const QString& context)
 {
     QMap<QString, QString> result;
-    const QStringList pairs = line.split(QStringLiteral("<!>"));
-    for (const QString& p : pairs) {
-        const QStringList pair = p.split(QStringLiteral(":::"));
-        if (pair.size() != 2) {
+    for (auto it = obj.constBegin(); it != obj.constEnd(); ++it) {
+        if (it.key().startsWith('_')) { // "_comment" and friends
             continue;
         }
-        const QString request = pair.first().trimmed();
-        const QString answer = pair.last().trimmed();
+        const QString request = it.key().trimmed();
+        const QString answer = it.value().toString().trimmed();
         if (request.isEmpty() || answer.isEmpty()) {
+            qWarning().noquote() << "[" + context + "] Trigger" << it.key() << "ignored (empty request or answer)";
             continue;
         }
         result[request] = answer;
-        qInfo().noquote() << "[" + context + "] Trigger:" << request << ":::" << answer;
+        qInfo().noquote() << "[" + context + "] Trigger:" << request << "->" << answer;
     }
     return result;
 }
 
-bool toBool(const QString& v)
+int lineNumberAt(const QByteArray& raw, int offset)
 {
-    return v.compare(QStringLiteral("true"), Qt::CaseInsensitive) == 0
-        || v.compare(QStringLiteral("on"), Qt::CaseInsensitive) == 0
-        || v == QStringLiteral("1");
+    return static_cast<int>(raw.left(offset).count('\n')) + 1;
 }
 
 } // namespace
 
 QString Config::exampleText()
 {
-    return QStringLiteral(
-        "[GLOBAL]\n"
-        "data_path = /srv/ircabot/data\n\n"
-        "# Web interface (multithreaded, JS-free; JS is used only on /~realtime/ pages).\n"
-        "bind_to_address = 127.0.0.1\n"
-        "bind_to_port = 8080\n"
-        "service_name = IRCaBot\n"
-        "service_emoji = &#128193;\n"
-        "# Uncomment to remove real time reading mode (and all JavaScript with it):\n"
-        "#realtime_disabled = true\n\n"
-        "# Defaults for all servers:\n"
-        "nick = default_nickname\n"
-        "user = default_ident\n"
-        "real_name = default_real_name\n"
-        "# If empty - logging in without NickServ password:\n"
-        "password =\n\n"
-        "# Bot answers when addressed: \"botnick, version\". Format: request ::: answer <!> ...\n"
-        "# %CHANNEL_FOR_URL% is replaced with server_slug/channel of the requesting chat.\n"
-        "triggers = version ::: IRCaBot ") + VERSION + QStringLiteral(" <!> webui ::: http://example.com/%CHANNEL_FOR_URL%\n\n"
-        "[Displayed server name]\n"
-        "address = 127.0.0.1\n"
-        "port = 6667\n"
-        "# TLS connection to IRC server:\n"
-        "#ssl = true\n"
-        "# Channels are splitted with comma:\n"
-        "channels = #general,#test\n"
-        "# Optional per-server overrides:\n"
-        "#nick = unique_nickname\n"
-        "#user = unique_ident\n"
-        "#real_name = unique_real_name\n"
-        "#password = password_for_this_server\n"
-        "#triggers = hi ::: hello\n");
+    // "_comment" keys are ignored by the parser: JSON has no real comments
+    return QStringLiteral(R"({
+    "data_path": "/srv/ircabot/data",
+
+    "web": {
+        "_comment": "JS is used only on /~realtime/ pages; realtime_disabled removes it entirely",
+        "address": "127.0.0.1",
+        "port": 8080,
+        "service_name": "IRCaBot",
+        "service_emoji": "&#128193;",
+        "realtime_disabled": false
+    },
+
+    "defaults": {
+        "_comment": "Used for every server unless overridden. Empty password: no NickServ login",
+        "nick": "default_nickname",
+        "user": "default_ident",
+        "real_name": "default_real_name",
+        "password": ""
+    },
+
+    "triggers": {
+        "_comment": "Bot answers when addressed: 'botnick, version'. %CHANNEL_FOR_URL% -> server_slug/channel",
+        "version": "IRCaBot )") + QString::fromUtf8(VERSION) + QStringLiteral(R"(",
+        "webui": "http://example.com/%CHANNEL_FOR_URL%"
+    },
+
+    "servers": [
+        {
+            "_comment": "nick, user, real_name, password and triggers can be overridden per server",
+            "name": "Displayed server name",
+            "address": "127.0.0.1",
+            "port": 6667,
+            "ssl": false,
+            "channels": ["#general", "#test"]
+        }
+    ]
+}
+)");
 }
 
 Config::Config(const QString& path)
@@ -120,23 +95,26 @@ Config::Config(const QString& path)
     if (!file.open(QIODevice::ReadOnly)) {
         throw std::runtime_error("Can't open configuration file: " + path.toStdString());
     }
-    parse(QString::fromUtf8(file.readAll()));
+    parse(file.readAll());
 }
 
-void Config::parse(const QString& text)
+void Config::parse(const QByteArray& raw)
 {
-    const QList<Section> sections = tokenize(text);
-
-    auto globalIt = std::find_if(sections.begin(), sections.end(),
-                                 [](const Section& s) { return s.name == QStringLiteral("GLOBAL"); });
-    if (globalIt == sections.end()) {
-        throw std::runtime_error("Wrong config: [GLOBAL] section not exist");
+    QJsonParseError parseError;
+    const QJsonDocument doc = QJsonDocument::fromJson(raw, &parseError);
+    if (doc.isNull()) {
+        throw std::runtime_error("Config is not valid JSON: "
+                                 + parseError.errorString().toStdString()
+                                 + " (line " + std::to_string(lineNumberAt(raw, parseError.offset)) + ")");
     }
-    const QMap<QString, QString>& g = globalIt->values;
+    if (!doc.isObject()) {
+        throw std::runtime_error("Config root must be a JSON object");
+    }
+    const QJsonObject root = doc.object();
 
-    m_dataPath = g.value(QStringLiteral("data_path"));
+    m_dataPath = root.value(QStringLiteral("data_path")).toString();
     if (m_dataPath.isEmpty()) {
-        throw std::runtime_error("'data_path' in [GLOBAL] is undefined");
+        throw std::runtime_error("'data_path' is undefined");
     }
     if (!m_dataPath.endsWith('/')) {
         m_dataPath += '/';
@@ -145,52 +123,57 @@ void Config::parse(const QString& text)
         throw std::runtime_error("Can't create data_path: " + m_dataPath.toStdString());
     }
 
-    m_bindAddress = g.value(QStringLiteral("bind_to_address"));
+    const QJsonObject web = root.value(QStringLiteral("web")).toObject();
+    m_bindAddress = web.value(QStringLiteral("address")).toString();
     if (m_bindAddress.isEmpty()) {
-        throw std::runtime_error("'bind_to_address' in [GLOBAL] is undefined");
+        throw std::runtime_error("'web.address' is undefined");
     }
-    bool portOk = false;
-    m_bindPort = g.value(QStringLiteral("bind_to_port")).toUShort(&portOk);
-    if (!portOk || m_bindPort == 0) {
-        throw std::runtime_error("'bind_to_port' in [GLOBAL] is incorrect");
+    const int port = web.value(QStringLiteral("port")).toInt();
+    if (port <= 0 || port > 65535) {
+        throw std::runtime_error("'web.port' is incorrect");
     }
+    m_bindPort = static_cast<quint16>(port);
+    m_serviceName = web.value(QStringLiteral("service_name")).toString(QStringLiteral("IRCaBot"));
+    m_serviceEmoji = web.value(QStringLiteral("service_emoji")).toString(QStringLiteral("&#128193;"));
+    m_realtimeDisabled = web.value(QStringLiteral("realtime_disabled")).toBool(false);
 
-    m_serviceName = g.value(QStringLiteral("service_name"), QStringLiteral("IRCaBot"));
-    m_serviceEmoji = g.value(QStringLiteral("service_emoji"), QStringLiteral("&#128193;"));
-    m_realtimeDisabled = toBool(g.value(QStringLiteral("realtime_disabled")))
-                      || toBool(g.value(QStringLiteral("AJAXIsDisabled"))); // v1 compatibility
+    const QJsonObject defaults = root.value(QStringLiteral("defaults")).toObject();
+    const QString defaultNick = defaults.value(QStringLiteral("nick")).toString().replace(' ', '_');
+    const QString defaultUser = defaults.value(QStringLiteral("user")).toString();
+    const QString defaultRealName = defaults.value(QStringLiteral("real_name")).toString();
+    const QString defaultPassword = defaults.value(QStringLiteral("password")).toString();
 
-    const QString defaultNick = g.value(QStringLiteral("nick")).replace(' ', '_');
-    const QString defaultUser = g.value(QStringLiteral("user"));
-    const QString defaultRealName = g.value(QStringLiteral("real_name"));
-    const QString defaultPassword = g.value(QStringLiteral("password"));
     const QMap<QString, QString> globalTriggers =
-        parseTriggers(g.value(QStringLiteral("triggers")), QStringLiteral("GLOBAL"));
+        readTriggers(root.value(QStringLiteral("triggers")).toObject(), QStringLiteral("GLOBAL"));
 
-    for (const Section& s : sections) {
-        if (s.name == QStringLiteral("GLOBAL")) {
-            continue;
-        }
+    const QJsonArray servers = root.value(QStringLiteral("servers")).toArray();
+    for (const QJsonValue& value : servers) {
+        const QJsonObject s = value.toObject();
 
         ServerConfig srv;
-        srv.displayName = s.name;
-        srv.slug = util::slugify(s.name);
+        srv.displayName = s.value(QStringLiteral("name")).toString().trimmed();
+        if (srv.displayName.isEmpty()) {
+            qWarning().noquote() << "Server entry ignored (empty 'name')";
+            continue;
+        }
+        srv.slug = util::slugify(srv.displayName);
 
-        srv.address = s.values.value(QStringLiteral("address"));
+        srv.address = s.value(QStringLiteral("address")).toString();
         if (srv.address.isEmpty()) {
-            qWarning().noquote() << "[" + s.name + "] ignored (empty 'address')";
+            qWarning().noquote() << "[" + srv.displayName + "] ignored (empty 'address')";
             continue;
         }
-        bool ok = false;
-        srv.port = s.values.value(QStringLiteral("port")).toUShort(&ok);
-        if (!ok || srv.port == 0) {
-            qWarning().noquote() << "[" + s.name + "] ignored (wrong 'port')";
+        const int srvPort = s.value(QStringLiteral("port")).toInt();
+        if (srvPort <= 0 || srvPort > 65535) {
+            qWarning().noquote() << "[" + srv.displayName + "] ignored (wrong 'port')";
             continue;
         }
-        srv.ssl = toBool(s.values.value(QStringLiteral("ssl")));
+        srv.port = static_cast<quint16>(srvPort);
+        srv.ssl = s.value(QStringLiteral("ssl")).toBool(false);
 
-        const QStringList rawChannels = s.values.value(QStringLiteral("channels")).split(',', Qt::SkipEmptyParts);
-        for (QString ch : rawChannels) {
+        const QJsonArray channels = s.value(QStringLiteral("channels")).toArray();
+        for (const QJsonValue& chValue : channels) {
+            QString ch = chValue.toString();
             ch.remove(' ');
             if (ch.isEmpty()) {
                 continue;
@@ -201,20 +184,21 @@ void Config::parse(const QString& text)
             srv.channels.push_back(ch);
         }
         if (srv.channels.isEmpty()) {
-            qWarning().noquote() << "[" + s.name + "] ignored (empty 'channels')";
+            qWarning().noquote() << "[" + srv.displayName + "] ignored (empty 'channels')";
             continue;
         }
 
-        srv.nick = s.values.value(QStringLiteral("nick"), defaultNick).replace(' ', '_');
-        srv.user = s.values.value(QStringLiteral("user"), defaultUser);
-        srv.realName = s.values.value(QStringLiteral("real_name"), defaultRealName);
-        srv.password = s.values.value(QStringLiteral("password"), defaultPassword);
+        srv.nick = s.value(QStringLiteral("nick")).toString(defaultNick).replace(' ', '_');
+        srv.user = s.value(QStringLiteral("user")).toString(defaultUser);
+        srv.realName = s.value(QStringLiteral("real_name")).toString(defaultRealName);
+        srv.password = s.value(QStringLiteral("password")).toString(defaultPassword);
         if (srv.nick.isEmpty() || srv.user.isEmpty() || srv.realName.isEmpty()) {
-            qWarning().noquote() << "[" + s.name + "] ignored (empty 'nick', 'user' or 'real_name', local and global)";
+            qWarning().noquote() << "[" + srv.displayName + "] ignored "
+                                    "(empty 'nick', 'user' or 'real_name', local and defaults)";
             continue;
         }
 
-        srv.triggers = parseTriggers(s.values.value(QStringLiteral("triggers")), s.name);
+        srv.triggers = readTriggers(s.value(QStringLiteral("triggers")).toObject(), srv.displayName);
         for (auto it = globalTriggers.constBegin(); it != globalTriggers.constEnd(); ++it) {
             if (!srv.triggers.contains(it.key())) {
                 srv.triggers[it.key()] = it.value();
@@ -225,7 +209,7 @@ void Config::parse(const QString& text)
     }
 
     if (m_servers.isEmpty()) {
-        throw std::runtime_error("No valid server sections in configuration file");
+        throw std::runtime_error("No valid entries in 'servers'");
     }
 }
 

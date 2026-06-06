@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 User=ircabot
 Group=ircabot
-ExecStart=/usr/local/bin/ircabot --config /etc/ircabot/config.conf
+ExecStart=/usr/local/bin/ircabot --config /etc/ircabot/config.json
 Restart=on-failure
 RestartSec=10
 

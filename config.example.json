@@ -1,0 +1,37 @@
+{
+    "data_path": "/srv/ircabot/data",
+
+    "web": {
+        "_comment": "JS is used only on /~realtime/ pages; realtime_disabled removes it entirely",
+        "address": "127.0.0.1",
+        "port": 8080,
+        "service_name": "IRCaBot",
+        "service_emoji": "&#128193;",
+        "realtime_disabled": false
+    },
+
+    "defaults": {
+        "_comment": "Used for every server unless overridden. Empty password: no NickServ login",
+        "nick": "default_nickname",
+        "user": "default_ident",
+        "real_name": "default_real_name",
+        "password": ""
+    },
+
+    "triggers": {
+        "_comment": "Bot answers when addressed: 'botnick, version'. %CHANNEL_FOR_URL% -> server_slug/channel",
+        "version": "IRCaBot 3.0.0",
+        "webui": "http://example.com/%CHANNEL_FOR_URL%"
+    },
+
+    "servers": [
+        {
+            "_comment": "nick, user, real_name, password and triggers can be overridden per server",
+            "name": "Displayed server name",
+            "address": "127.0.0.1",
+            "port": 6667,
+            "ssl": false,
+            "channels": ["#general", "#test"]
+        }
+    ]
+}

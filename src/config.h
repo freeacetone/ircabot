@@ -14,7 +14,7 @@ namespace ircabot {
 
 struct ServerConfig
 {
-    QString displayName;   // section header, e.g. [Ilita IRC]
+    QString displayName;   // "name" field, e.g. "Ilita IRC"
     QString slug;          // "ilita_irc" - folder name and URL segment
     QString address;
     quint16 port = 0;
@@ -27,8 +27,8 @@ struct ServerConfig
     QMap<QString, QString> triggers; // request -> answer
 };
 
-// INI-style configuration, file format compatible with IRCaBot v1/v2.
-// New optional keys: "ssl" (per server), "realtime_disabled" (alias of AJAXIsDisabled).
+// JSON configuration file. See exampleText() for the full structure.
+// Top-level keys: data_path, web{}, defaults{}, triggers{}, servers[].
 class Config
 {
 public:
@@ -46,7 +46,7 @@ public:
     const QList<ServerConfig>& servers() const { return m_servers; }
 
 private:
-    void parse(const QString& text);
+    void parse(const QByteArray& raw);
 
     QString m_dataPath;
     QString m_bindAddress;
