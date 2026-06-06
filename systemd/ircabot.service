@@ -1,0 +1,24 @@
+[Unit]
+Description=IRCaBot - IRC chat logger with web interface
+After=network.target
+
+[Service]
+Type=simple
+User=ircabot
+Group=ircabot
+ExecStart=/usr/local/bin/ircabot --config /etc/ircabot/config.conf
+Restart=on-failure
+RestartSec=10
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/ircabot/data
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

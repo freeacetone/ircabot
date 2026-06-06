@@ -1,0 +1,486 @@
+/*
+ * IRCaBot Reborn - IRC chat logger with a JS-free web interface.
+ * Copyright (C) acetone, 2021-2026. GPLv3.
+ */
+
+#include "ircclient.h"
+#include "util.h"
+
+#include <QDateTime>
+#include <QDebug>
+#include <QRandomGenerator>
+
+#include <algorithm>
+
+namespace ircabot {
+
+namespace {
+
+constexpr const char* BLINDED_MESSAGE_MARKER = "Blinded message"; // v1 format
+constexpr const char* TRIGGER_CHANNEL_FOR_URL = "%CHANNEL_FOR_URL%";
+
+int nickRank(const QString& nick)
+{
+    if (nick.isEmpty()) {
+        return 5;
+    }
+    switch (nick.front().toLatin1()) {
+    case '~': return 0; // owner
+    case '&': return 1; // admin
+    case '@': return 2; // operator
+    case '%': return 3; // half-op
+    case '+': return 4; // voiced
+    default:  return 5;
+    }
+}
+
+QStringList sortedByRank(QStringList nicks)
+{
+    nicks.removeAll(QString());
+    std::sort(nicks.begin(), nicks.end(), [](const QString& a, const QString& b) {
+        const int ra = nickRank(a);
+        const int rb = nickRank(b);
+        if (ra != rb) {
+            return ra < rb;
+        }
+        return util::stripNickPrefix(a).compare(util::stripNickPrefix(b), Qt::CaseInsensitive) < 0;
+    });
+    return nicks;
+}
+
+} // namespace
+
+IrcClient::IrcClient(const ServerConfig& config, RuntimeState* state, LogStore* store, QObject* parent)
+    : QObject(parent), m_config(config), m_state(state), m_store(store)
+{
+    m_reconnectTimer.setSingleShot(true);
+    connect(&m_reconnectTimer, &QTimer::timeout, this, &IrcClient::start);
+    connect(&m_watchdogTimer, &QTimer::timeout, this, &IrcClient::onWatchdog);
+    connect(&m_namesTimer, &QTimer::timeout, this, &IrcClient::onNamesRefresh);
+    connect(&m_nickRecoverTimer, &QTimer::timeout, this, &IrcClient::onNickRecover);
+
+    m_state->registerServer(m_config.displayName, m_config.slug, m_config.channels);
+    m_state->setBotNick(m_config.slug, m_config.nick);
+}
+
+void IrcClient::start()
+{
+    if (m_socket) {
+        m_socket->deleteLater();
+    }
+    m_socket = new QSslSocket(this);
+    m_buffer.clear();
+    m_registered = false;
+    m_keepAliveSent = false;
+    m_online.clear();
+    m_namesAccum.clear();
+
+    connect(m_socket, &QSslSocket::connected, this, &IrcClient::onConnected);
+    connect(m_socket, &QSslSocket::disconnected, this, &IrcClient::onDisconnected);
+    connect(m_socket, &QSslSocket::readyRead, this, &IrcClient::onReadyRead);
+    connect(m_socket, &QSslSocket::errorOccurred, this, [this](QAbstractSocket::SocketError) {
+        if (m_socket->state() != QAbstractSocket::ConnectedState) {
+            onDisconnected();
+        }
+    });
+
+    if (m_config.ssl) {
+        connect(m_socket, &QSslSocket::encrypted, this, &IrcClient::onConnected);
+        m_socket->connectToHostEncrypted(m_config.address, m_config.port);
+    } else {
+        m_socket->connectToHost(m_config.address, m_config.port);
+    }
+}
+
+void IrcClient::onConnected()
+{
+    if (m_config.ssl && !m_socket->isEncrypted()) {
+        return; // wait for the encrypted() signal
+    }
+    m_reconnectLogged = false;
+    m_lastActivity = QDateTime::currentMSecsSinceEpoch();
+    m_watchdogTimer.start(WATCHDOG_INTERVAL_MS);
+
+    consoleLog("Socket connected, registering...");
+    send("USER " + m_config.user + " 0 * :" + m_config.realName);
+    send("NICK " + m_config.nick);
+}
+
+void IrcClient::onDisconnected()
+{
+    if (m_reconnectTimer.isActive()) {
+        return;
+    }
+    m_watchdogTimer.stop();
+    m_namesTimer.stop();
+    m_nickRecoverTimer.stop();
+    m_registered = false;
+    m_state->setConnected(m_config.slug, false);
+
+    if (!m_reconnectLogged) {
+        consoleLog("Disconnected. Reconnecting every " + QString::number(RECONNECT_DELAY_MS / 1000) + " sec...");
+        m_reconnectLogged = true;
+    }
+    scheduleReconnect();
+}
+
+void IrcClient::scheduleReconnect()
+{
+    m_reconnectTimer.start(RECONNECT_DELAY_MS);
+}
+
+void IrcClient::onReadyRead()
+{
+    m_lastActivity = QDateTime::currentMSecsSinceEpoch();
+    m_keepAliveSent = false;
+    m_buffer += m_socket->readAll();
+
+    qsizetype pos = 0;
+    while ((pos = m_buffer.indexOf('\n')) != -1) {
+        QByteArray rawLine = m_buffer.left(pos);
+        m_buffer.remove(0, pos + 1);
+        while (rawLine.endsWith('\r')) {
+            rawLine.chop(1);
+        }
+        if (rawLine.isEmpty()) {
+            continue;
+        }
+        processLine(QString::fromUtf8(rawLine));
+    }
+}
+
+void IrcClient::onWatchdog()
+{
+    const qint64 silence = QDateTime::currentMSecsSinceEpoch() - m_lastActivity;
+    if (silence > DEAD_SILENCE_MS) {
+        consoleLog("No data from server for " + QString::number(silence / 1000) + " sec, reconnecting");
+        m_socket->abort();
+        onDisconnected();
+    } else if (silence > KEEPALIVE_SILENCE_MS && !m_keepAliveSent && m_registered) {
+        send("PING :keepalive", false);
+        m_keepAliveSent = true;
+    }
+}
+
+void IrcClient::onNamesRefresh()
+{
+    for (const QString& ch : m_config.channels) {
+        send("NAMES " + ch, false);
+    }
+}
+
+void IrcClient::onNickRecover()
+{
+    send("NICK " + m_config.nick);
+    if (!m_config.password.isEmpty()) {
+        send("PRIVMSG NickServ :IDENTIFY " + m_config.password, false);
+    }
+}
+
+QString IrcClient::currentNick() const
+{
+    return m_altNick.isEmpty() ? m_config.nick : m_altNick;
+}
+
+void IrcClient::send(const QString& line, bool log)
+{
+    if (!m_socket || m_socket->state() != QAbstractSocket::ConnectedState) {
+        return;
+    }
+    if (log) {
+        consoleLog("<- " + line);
+    }
+    m_socket->write(line.toUtf8() + "\r\n");
+}
+
+IrcClient::IrcMessage IrcClient::parseLine(const QString& line)
+{
+    IrcMessage msg;
+    QString rest = line;
+
+    if (rest.startsWith(':')) {
+        const qsizetype space = rest.indexOf(' ');
+        if (space == -1) {
+            return msg;
+        }
+        const QString prefix = rest.mid(1, space - 1);
+        const qsizetype bang = prefix.indexOf('!');
+        msg.prefixNick = bang == -1 ? prefix : prefix.left(bang);
+        rest = rest.mid(space + 1);
+    }
+
+    const qsizetype trailingPos = rest.indexOf(QStringLiteral(" :"));
+    if (trailingPos != -1) {
+        msg.trailing = rest.mid(trailingPos + 2);
+        rest = rest.left(trailingPos);
+    }
+
+    QStringList parts = rest.split(' ', Qt::SkipEmptyParts);
+    if (parts.isEmpty()) {
+        return msg;
+    }
+    msg.command = parts.takeFirst().toUpper();
+    msg.params = parts;
+    return msg;
+}
+
+void IrcClient::onRegistered()
+{
+    if (m_registered) {
+        return;
+    }
+    m_registered = true;
+    consoleLog("Connected to server!");
+    m_state->setConnected(m_config.slug, true);
+
+    if (!m_config.password.isEmpty()) {
+        send("PRIVMSG NickServ :IDENTIFY " + m_config.password, false);
+    }
+    send("MODE " + currentNick() + " +B", false); // mark as bot, ignored by servers without +B
+
+    for (const QString& ch : m_config.channels) {
+        send("JOIN " + ch);
+    }
+    m_namesTimer.start(NAMES_REFRESH_MS);
+}
+
+void IrcClient::processLine(const QString& line)
+{
+    const IrcMessage msg = parseLine(line);
+
+    if (msg.command == QStringLiteral("PING")) {
+        send("PONG :" + (msg.trailing.isEmpty() ? (msg.params.isEmpty() ? QString() : msg.params.first())
+                                                : msg.trailing), false);
+        return;
+    }
+    if (msg.command == QStringLiteral("PONG")) {
+        return;
+    }
+    if (msg.command == QStringLiteral("ERROR")) {
+        consoleLog("Server error: " + msg.trailing);
+        return;
+    }
+
+    if (msg.command == QStringLiteral("001")) { // RPL_WELCOME
+        onRegistered();
+        return;
+    }
+    if (msg.command == QStringLiteral("433")) { // nickname already in use
+        if (m_altNick.isEmpty()) {
+            m_altNick = m_config.nick + '_' + QString::number(QRandomGenerator::global()->bounded(100, 999));
+            consoleLog("Nickname is busy, using " + m_altNick);
+            m_state->setBotNick(m_config.slug, m_altNick);
+            m_nickRecoverTimer.start(NICK_RECOVER_MS);
+            send("NICK " + m_altNick);
+        }
+        return;
+    }
+
+    if (msg.command == QStringLiteral("332")) { // RPL_TOPIC: <me> <channel> :<topic>
+        if (msg.params.size() >= 2) {
+            QString channel = msg.params[1];
+            m_state->setTopic(m_config.slug, channel.remove('#'), msg.trailing);
+        }
+        return;
+    }
+    if (msg.command == QStringLiteral("TOPIC")) { // :<nick> TOPIC <channel> :<topic>
+        if (!msg.params.isEmpty()) {
+            QString channel = msg.params[0];
+            consoleLog("Topic at " + channel + ": " + msg.trailing);
+            m_state->setTopic(m_config.slug, channel.remove('#'), msg.trailing);
+        }
+        return;
+    }
+
+    if (msg.command == QStringLiteral("353")) { // RPL_NAMREPLY: <me> = <channel> :nick1 nick2
+        if (!msg.params.isEmpty()) {
+            const QString channel = msg.params.last();
+            m_namesAccum[channel] += msg.trailing.split(' ', Qt::SkipEmptyParts);
+        }
+        return;
+    }
+    if (msg.command == QStringLiteral("366")) { // RPL_ENDOFNAMES
+        if (msg.params.size() >= 2) {
+            const QString channel = msg.params[1];
+            m_online[channel] = m_namesAccum.take(channel);
+            publishOnline(channel);
+        }
+        return;
+    }
+
+    if (msg.command == QStringLiteral("PRIVMSG")) {
+        handlePrivmsg(msg);
+        return;
+    }
+
+    if (msg.command == QStringLiteral("JOIN")) {
+        const QString channel = msg.params.isEmpty() ? msg.trailing : msg.params.first();
+        if (msg.prefixNick == currentNick()) {
+            consoleLog("I joined to " + channel);
+            return;
+        }
+        if (!m_online[channel].contains(msg.prefixNick)) {
+            m_online[channel].push_back(msg.prefixNick);
+        }
+        publishOnline(channel);
+        return;
+    }
+    if (msg.command == QStringLiteral("PART")) {
+        const QString channel = msg.params.isEmpty() ? msg.trailing : msg.params.first();
+        auto& list = m_online[channel];
+        list.removeAll(msg.prefixNick);
+        for (const char* p : {"~", "&", "@", "%", "+"}) {
+            list.removeAll(p + msg.prefixNick);
+        }
+        publishOnline(channel);
+        return;
+    }
+    if (msg.command == QStringLiteral("KICK")) { // KICK <channel> <victim> :reason
+        if (msg.params.size() >= 2) {
+            const QString channel = msg.params[0];
+            const QString victim = msg.params[1];
+            auto& list = m_online[channel];
+            list.removeAll(victim);
+            for (const char* p : {"~", "&", "@", "%", "+"}) {
+                list.removeAll(p + victim);
+            }
+            publishOnline(channel);
+        }
+        return;
+    }
+    if (msg.command == QStringLiteral("QUIT")) {
+        removeUserEverywhere(msg.prefixNick);
+        return;
+    }
+    if (msg.command == QStringLiteral("NICK")) {
+        const QString newNick = msg.trailing.isEmpty()
+                                    ? (msg.params.isEmpty() ? QString() : msg.params.first())
+                                    : msg.trailing;
+        if (newNick.isEmpty()) {
+            return;
+        }
+
+        if (msg.prefixNick == currentNick()) { // it is me
+            if (newNick == m_config.nick) {
+                consoleLog("Default nickname (" + m_config.nick + ") is recovered!");
+                m_altNick.clear();
+                m_nickRecoverTimer.stop();
+            } else {
+                m_altNick = newNick;
+                m_nickRecoverTimer.start(NICK_RECOVER_MS);
+            }
+            m_state->setBotNick(m_config.slug, currentNick());
+        } else {
+            for (auto it = m_online.begin(); it != m_online.end(); ++it) {
+                bool changed = false;
+                for (QString& nick : it.value()) {
+                    if (util::stripNickPrefix(nick) == msg.prefixNick) {
+                        nick = newNick;
+                        changed = true;
+                    }
+                }
+                if (changed) {
+                    publishOnline(it.key());
+                }
+            }
+        }
+        return;
+    }
+    if (msg.command == QStringLiteral("MODE")) {
+        // Channel mode change can grant/remove prefixes: refresh NAMES
+        if (!msg.params.isEmpty() && msg.params.first().startsWith('#')) {
+            send("NAMES " + msg.params.first(), false);
+        }
+        return;
+    }
+}
+
+void IrcClient::handlePrivmsg(const IrcMessage& msg)
+{
+    if (msg.params.isEmpty()) {
+        return;
+    }
+    const QString target = msg.params.first();
+    if (!target.startsWith('#')) {
+        return; // private message to the bot is not logged
+    }
+
+    QString channel = target;
+    channel.remove('#');
+    QString text = msg.trailing;
+
+    // Addressed to the bot: "botnick: request" / "botnick, request"
+    const QString me = currentNick();
+    if (text.startsWith(me) && text.size() > me.size()
+        && QStringLiteral(":,!").contains(text.at(me.size()))) {
+        handleTrigger(target, msg.prefixNick, text.mid(me.size() + 1).trimmed());
+        return;
+    }
+
+    if (text.startsWith('.')) {
+        text = QString::fromUtf8(BLINDED_MESSAGE_MARKER);
+    } else if (text.startsWith(QStringLiteral("\x01" "ACTION")) && text.endsWith('\x01')) {
+        text = "*** " + text.mid(8, text.size() - 9).trimmed() + " ***";
+    }
+
+    consoleLog(target + " (" + msg.prefixNick + "): " + text);
+    m_store->append(channel, msg.prefixNick, text);
+    m_state->pushLiveMessage(m_config.slug, channel, msg.prefixNick, text);
+}
+
+void IrcClient::handleTrigger(const QString& channel, const QString& nick, const QString& request)
+{
+    if (m_config.triggers.isEmpty() || request.isEmpty()) {
+        return;
+    }
+
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (now - m_lastTriggerTime < TRIGGER_COOLDOWN_MS) {
+        consoleLog("Trigger request ignored (anti-flood)");
+        return;
+    }
+    m_lastTriggerTime = now;
+
+    for (auto it = m_config.triggers.constBegin(); it != m_config.triggers.constEnd(); ++it) {
+        if (request.contains(it.key(), Qt::CaseInsensitive)) {
+            QString answer = it.value();
+            answer.replace(QString::fromUtf8(TRIGGER_CHANNEL_FOR_URL),
+                           m_config.slug + '/' + QString(channel).remove('#'));
+            send("PRIVMSG " + channel + " :" + nick + ", " + answer);
+            return;
+        }
+    }
+    QStringList known = m_config.triggers.keys();
+    for (QString& k : known) {
+        k = '\'' + k + '\'';
+    }
+    send("PRIVMSG " + channel + " :" + nick + ", try it: " + known.join(QStringLiteral(", ")));
+}
+
+void IrcClient::publishOnline(const QString& channel)
+{
+    QString plain = channel;
+    plain.remove('#');
+    m_state->setOnline(m_config.slug, plain, sortedByRank(m_online.value(channel)));
+}
+
+void IrcClient::removeUserEverywhere(const QString& nick)
+{
+    for (auto it = m_online.begin(); it != m_online.end(); ++it) {
+        const auto sizeBefore = it.value().size();
+        it.value().removeAll(nick);
+        for (const char* p : {"~", "&", "@", "%", "+"}) {
+            it.value().removeAll(p + nick);
+        }
+        if (it.value().size() != sizeBefore) {
+            publishOnline(it.key());
+        }
+    }
+}
+
+void IrcClient::consoleLog(const QString& message) const
+{
+    qInfo().noquote() << "[" + m_config.displayName + "]" << message;
+}
+
+} // namespace ircabot
