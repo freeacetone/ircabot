@@ -231,13 +231,21 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
     padding: 18px 24px 40px;
 }
 
-.chan-head { margin-bottom: 12px; }
+.chan-head {
+    margin-bottom: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
 
 .chan-title {
     display: flex;
     align-items: baseline;
     gap: 9px;
     flex-wrap: wrap;
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .chan-title h1 {
@@ -267,25 +275,26 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
 }
 
 .chan-topic {
-    margin: 6px 0 0;
+    margin: 0;
+    flex-basis: 100%;
     color: var(--ink-dim);
     font-style: italic;
     border-left: 2px solid var(--panel-edge);
     padding-left: 10px;
 }
 
-/* search */
+/* search: compact, top right corner; the input grows on focus */
 .search {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-top: 12px;
-    flex-wrap: wrap;
+    gap: 8px;
+    margin-left: auto;
+    flex: 0 0 auto;
 }
 
 .search-input {
-    flex: 1 1 220px;
-    max-width: 420px;
+    width: 150px;
+    transition: width 0.15s ease;
     background: var(--bg-deep);
     border: 1px solid var(--panel-edge);
     border-radius: 3px;
@@ -295,7 +304,11 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
     padding: 5px 9px;
     outline: none;
 }
-.search-input:focus { border-color: var(--amber-soft); box-shadow: 0 0 8px var(--glow-amber); }
+.search-input:focus {
+    width: 260px;
+    border-color: var(--amber-soft);
+    box-shadow: 0 0 8px var(--glow-amber);
+}
 
 .search-rgx { color: var(--ink-dim); font-size: 12px; cursor: pointer; user-select: none; }
 .search-rgx input { accent-color: var(--amber); cursor: pointer; }
@@ -307,7 +320,7 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
     color: var(--amber);
     font-family: var(--mono);
     font-size: 13px;
-    padding: 4px 14px;
+    padding: 4px 10px;
     cursor: pointer;
 }
 .search-btn:hover { background: var(--tint-amber); box-shadow: 0 0 10px var(--glow-amber); }
@@ -318,7 +331,7 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
 .search-date a:hover { color: var(--amber); }
 
 /* online list */
-.online { margin-top: 10px; }
+.online { flex-basis: 100%; }
 .online summary {
     cursor: pointer;
     color: var(--ink-dim);
@@ -519,7 +532,10 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
     .msg { grid-column: 2; }
     .nick { white-space: normal; }
 
-    .search-input { max-width: none; flex-basis: 100%; } /* own row, controls below */
+    /* Search takes its own full row again */
+    .search { flex-basis: 100%; margin-left: 0; flex-wrap: wrap; }
+    .search-input { width: auto; flex: 1 1 100%; }
+    .search-input:focus { width: auto; }
     .daynav-link { padding: 5px 12px; } /* bigger touch targets */
     .day { padding: 5px 11px; }
     .online-list { gap: 8px 16px; }
