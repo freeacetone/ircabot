@@ -551,8 +551,28 @@ body { overflow: hidden; } /* the page itself never scrolls */
     }
     .side-theme { margin-top: 4px; }
 
-    .content { padding: 14px 10px 32px; }
-    .chan-title h1 { font-size: 18px; }
+    .content { padding: 10px 10px 24px; }
+    .chan-head { margin-bottom: 6px; row-gap: 4px; }
+    .chan-title h1 { font-size: 16px; }
+
+    /* Topic takes a single line, full text stays on desktop */
+    .chan-topic {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 12px;
+    }
+
+    .daynav { margin: 8px 0; gap: 6px; }
+
+    /* The header scrolls away with the content: only the slim brand bar
+       at the top of the screen stays static on small screens */
+    .content.chat { overflow-y: auto; }
+    .content.chat .log {
+        flex: none;
+        min-height: auto;
+        overflow: visible;
+    }
 
     /* Two-column log lines: number+nick, message below */
     .line {

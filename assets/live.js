@@ -86,16 +86,20 @@
             // Network is fine; red dots also when the bot lost its IRC server
             networkOk = data.connected;
 
-            // The log block scrolls internally (page layout is fixed)
+            // Desktop: the log block scrolls internally. Small screens:
+            // the whole content column is the scroller (header slides away)
+            var scroller = getComputedStyle(log).overflowY === "auto"
+                ? log
+                : (document.querySelector(".content.chat") || document.scrollingElement);
             var atBottom =
-                log.scrollHeight - log.scrollTop - log.clientHeight < 60;
+                scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60;
             var messages = data.messages || [];
             for (var i = 0; i < messages.length; i++) {
                 appendMessage(messages[i]);
             }
             lastId = data.last || lastId;
             if (messages.length > 0 && atBottom) {
-                log.scrollTop = log.scrollHeight;
+                scroller.scrollTop = scroller.scrollHeight;
             }
         };
         request.onerror = request.ontimeout = function () {
