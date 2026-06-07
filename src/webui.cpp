@@ -82,7 +82,11 @@ QString themeFromRequest(const QHttpServerRequest& request)
 QHttpServerResponse themeRedirect(const QString& mode, const QUrlQuery& query)
 {
     const QString back = query.queryItemValue(QStringLiteral("back"), QUrl::FullyDecoded);
-    const bool backIsLocal = back.startsWith('/') && !back.startsWith(QStringLiteral("//"));
+    // Must be a local absolute path. Reject "//host" and "/\host": browsers
+    // normalise '\' to '/', so both resolve to a scheme-relative URL (open redirect).
+    const bool backIsLocal = back.startsWith('/')
+        && !back.startsWith(QStringLiteral("//"))
+        && !back.startsWith(QStringLiteral("/\\"));
     const QByteArray location = backIsLocal ? back.toUtf8() : QByteArrayLiteral("/");
 
     QByteArray cookie(THEME_COOKIE);
