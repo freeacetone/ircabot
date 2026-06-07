@@ -294,17 +294,18 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
 .search {
     order: 2;
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 2px;
+    align-items: flex-start;
+    gap: 8px;
     margin-left: auto;
     flex: 0 0 auto;
 }
 
-.search-row {
+/* grep on top, regexp checkbox under it; the button takes the column width */
+.search-side {
     display: flex;
-    align-items: center;
-    gap: 8px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 3px;
 }
 
 .search-input {
@@ -542,8 +543,7 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
     .nick { white-space: normal; }
 
     /* Search takes its own full row again */
-    .search { flex-basis: 100%; margin-left: 0; align-items: flex-end; }
-    .search-row { width: 100%; }
+    .search { flex-basis: 100%; margin-left: 0; }
     .search-input { width: auto; flex: 1 1 auto; }
     .search-input:focus { width: auto; }
     .daynav-link { padding: 5px 12px; } /* bigger touch targets */

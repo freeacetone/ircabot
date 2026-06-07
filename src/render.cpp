@@ -129,14 +129,15 @@ QString channelHeader(const Site& site, const ServerSnapshot& server, const QStr
     }
 
     // Search form (plain GET, parameter names are v1-compatible).
-    // Explicit rows: input + button, regexp checkbox right under the button
+    // Input on the left; on the right a column: grep button stretched
+    // to the width of the regexp checkbox under it
     html += QStringLiteral(
         "<form class=\"search\" method=\"get\" action=\"/%1/%2\">\n"
-        "<div class=\"search-row\">\n"
         "<input class=\"search-input\" type=\"search\" name=\"toSearch\" placeholder=\"search in #%3\">\n"
+        "<div class=\"search-side\">\n"
         "<button class=\"search-btn\" type=\"submit\">grep</button>\n"
-        "</div>\n"
         "<label class=\"search-rgx\"><input type=\"checkbox\" name=\"isRegexp\" value=\"on\"> regexp</label>\n"
+        "</div>\n"
         "</form>\n")
                 .arg(server.slug, channel, esc(channel));
 
