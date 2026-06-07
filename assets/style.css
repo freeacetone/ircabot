@@ -318,6 +318,7 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
     flex-basis: 100%;
     display: flex;
     align-items: center;
+    justify-content: flex-end; /* under the grep button, no empty tail */
     color: var(--ink-dim);
     font-size: 12px;
     cursor: pointer;
