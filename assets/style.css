@@ -390,7 +390,13 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
     font-size: 13px;
 }
 .daynav-link:hover { color: var(--amber); border-color: var(--amber-soft); text-decoration: none; }
-.daynav-link.disabled { color: var(--ink-faint); cursor: default; }
+.daynav-link.disabled { color: var(--ink-faint); cursor: not-allowed; }
+/* Dead end (no more history this way): clearly red on hover */
+.daynav-link.disabled:hover {
+    color: var(--red);
+    border-color: var(--red);
+    box-shadow: 0 0 8px var(--red);
+}
 
 /* Breadcrumbs: /year/month/day, the current segment is plain bold */
 .crumbs {
