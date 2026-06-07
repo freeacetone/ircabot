@@ -53,10 +53,13 @@ QString sidebar(const Site& site, const PageRef& ref)
 
     const QList<ServerSnapshot> servers = site.state->snapshotAll();
     for (const ServerSnapshot& srv : servers) {
+        // The server page itself is selected (no channel picked)
+        const bool serverActive = (srv.slug == ref.slug && ref.channel.isEmpty());
         html += QStringLiteral("<div class=\"side-server\">\n");
-        html += QStringLiteral("<a class=\"side-server-name\" href=\"/%1\" title=\"%2\">"
-                               "<span class=\"dot %3\"></span>%4</a>\n")
-                    .arg(srv.slug,
+        html += QStringLiteral("<a class=\"side-server-name%1\" href=\"/%2\" title=\"%3\">"
+                               "<span class=\"dot %4\"></span>%5</a>\n")
+                    .arg(serverActive ? QStringLiteral(" active") : QString(),
+                         srv.slug,
                          srv.connected ? QStringLiteral("online") : QStringLiteral("offline"),
                          srv.connected ? QStringLiteral("on") : QStringLiteral("off"),
                          esc(srv.displayName));
