@@ -371,6 +371,8 @@ QHttpServerResponse WebUi::servePage(const render::Site& site,
 
 QHttpServerResponse WebUi::serveAjax(const QString& slug, const QString& channel, quint64 afterId)
 {
+    m_state->countAjaxRequest();
+
     bool found = false;
     const ServerSnapshot server = m_state->snapshot(slug, &found);
     if (!found || !server.channels.contains(channel)) {

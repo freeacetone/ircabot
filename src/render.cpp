@@ -185,8 +185,13 @@ QString mainPage(const Site& site, const QString& mainPageText)
     QString welcome = mainPageText;
     welcome.replace(QStringLiteral("%LOCAL_TIME%"),
                     QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd hh:mm:ss")));
-    welcome.replace(QStringLiteral("%DAILY_REQUESTS%"),
-                    QString::number(site.state->requestsServedToday()));
+    // Same format as v1: "N (html) / M (ajax)" while real time mode is enabled
+    QString requestsCounter = QString::number(site.state->requestsServedToday());
+    if (!site.realtimeDisabled) {
+        requestsCounter += QStringLiteral(" (html) / %1 (ajax)")
+                               .arg(site.state->ajaxRequestsServedToday());
+    }
+    welcome.replace(QStringLiteral("%DAILY_REQUESTS%"), requestsCounter);
     content += QStringLiteral("<section class=\"panel\">%1</section>\n").arg(welcome);
 
     content += QStringLiteral("<section class=\"grid\">\n");

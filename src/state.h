@@ -60,8 +60,14 @@ public:
     ServerSnapshot snapshot(const QString& slug, bool* found = nullptr) const;
     ChannelSnapshot channelSnapshot(const QString& slug, const QString& channel) const;
     QList<LiveMessage> liveMessagesAfter(const QString& slug, const QString& channel, quint64 afterId) const;
+
+    // Daily request counters (reset at midnight). Page requests and ajax
+    // polls are counted separately: one live reader produces ~20 polls/min,
+    // mixing them in would say nothing about the real attendance.
     quint64 requestsServedToday() const;
+    quint64 ajaxRequestsServedToday() const;
     void countRequest() const;
+    void countAjaxRequest() const;
 
 private:
     struct ServerEntry
@@ -77,6 +83,7 @@ private:
 
     mutable QReadWriteLock m_counterLock;
     mutable quint64 m_requestCounter = 0;
+    mutable quint64 m_ajaxRequestCounter = 0;
     mutable QDate m_requestCounterDate;
 };
 

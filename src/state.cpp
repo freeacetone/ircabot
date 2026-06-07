@@ -129,6 +129,12 @@ quint64 RuntimeState::requestsServedToday() const
     return m_requestCounterDate == QDate::currentDate() ? m_requestCounter : 0;
 }
 
+quint64 RuntimeState::ajaxRequestsServedToday() const
+{
+    const QReadLocker locker(&m_counterLock);
+    return m_requestCounterDate == QDate::currentDate() ? m_ajaxRequestCounter : 0;
+}
+
 void RuntimeState::countRequest() const
 {
     const QWriteLocker locker(&m_counterLock);
@@ -136,8 +142,21 @@ void RuntimeState::countRequest() const
     if (m_requestCounterDate != today) {
         m_requestCounterDate = today;
         m_requestCounter = 0;
+        m_ajaxRequestCounter = 0;
     }
     ++m_requestCounter;
+}
+
+void RuntimeState::countAjaxRequest() const
+{
+    const QWriteLocker locker(&m_counterLock);
+    const QDate today = QDate::currentDate();
+    if (m_requestCounterDate != today) {
+        m_requestCounterDate = today;
+        m_requestCounter = 0;
+        m_ajaxRequestCounter = 0;
+    }
+    ++m_ajaxRequestCounter;
 }
 
 } // namespace ircabot
