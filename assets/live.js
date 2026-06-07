@@ -27,14 +27,18 @@
     var lastId = "0";
     var networkOk = true;
     var POLL_MS = 3000;
-    var DOTS_MS = 700;
     var MAX_LINES = 500;
 
-    // Animated dots: green while the network works, red otherwise (as in v1)
-    function animateDots() {
+    // Dots advance only when a real request is sent to the server;
+    // green while the network works, red otherwise (as in v1)
+    function advanceDots() {
         if (!status) return;
         var dots = status.textContent;
         status.textContent = dots.length >= 3 ? "." : dots + ".";
+    }
+
+    function paintDots() {
+        if (!status) return;
         status.className = networkOk ? "live-dots" : "live-dots bad";
     }
 
@@ -77,14 +81,17 @@
                 data = JSON.parse(request.responseText);
             } catch (e) {
                 networkOk = false;
+                paintDots();
                 return;
             }
             if (!data.ok) {
                 networkOk = false;
+                paintDots();
                 return;
             }
             // Network is fine; red dots also when the bot lost its IRC server
             networkOk = data.connected;
+            paintDots();
 
             // Desktop: the log block scrolls internally. Small screens:
             // the whole content column is the scroller (header slides away)
@@ -104,11 +111,12 @@
         };
         request.onerror = request.ontimeout = function () {
             networkOk = false;
+            paintDots();
         };
+        advanceDots(); // one dot step per real request
         request.send();
     }
 
     poll();
     setInterval(poll, POLL_MS);
-    setInterval(animateDots, DOTS_MS);
 })();
