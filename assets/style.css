@@ -284,15 +284,20 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
 }
 
 /* search: compact, top right corner; the input grows on focus.
-   Row 1: input + button, row 2: regexp checkbox right under the input */
+   Row 1: input + button, row 2: regexp checkbox right under the button */
 .search {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 2px 8px;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
     margin-left: auto;
     flex: 0 0 auto;
-    width: fit-content;
+}
+
+.search-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .search-input {
@@ -314,11 +319,8 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
 }
 
 .search-rgx {
-    order: 3;
-    flex-basis: 100%;
     display: flex;
     align-items: center;
-    justify-content: flex-end; /* under the grep button, no empty tail */
     color: var(--ink-dim);
     font-size: 12px;
     cursor: pointer;
@@ -386,6 +388,16 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
 }
 .daynav-link:hover { color: var(--amber); border-color: var(--amber-soft); text-decoration: none; }
 .daynav-link.disabled { color: var(--ink-faint); cursor: default; }
+
+/* Breadcrumbs: /year/month/day, the current segment is plain bold */
+.crumbs {
+    font-size: 14px;
+    letter-spacing: 1px;
+    padding: 2px 4px;
+    color: var(--ink-faint);
+}
+.crumbs a { color: var(--amber); }
+.crumbs b { color: var(--ink); font-weight: 700; }
 .daynav-link.live { color: var(--green); border-color: var(--glow-green); }
 .daynav-link.live:hover { box-shadow: 0 0 9px var(--glow-green); }
 
@@ -550,7 +562,8 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
     .nick { white-space: normal; }
 
     /* Search takes its own full row again */
-    .search { flex-basis: 100%; margin-left: 0; width: auto; }
+    .search { flex-basis: 100%; margin-left: 0; align-items: flex-end; }
+    .search-row { width: 100%; }
     .search-input { width: auto; flex: 1 1 auto; }
     .search-input:focus { width: auto; }
     .daynav-link { padding: 5px 12px; } /* bigger touch targets */

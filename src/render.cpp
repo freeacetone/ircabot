@@ -125,12 +125,15 @@ QString channelHeader(const Site& site, const ServerSnapshot& server, const QStr
         html += QStringLiteral("<p class=\"chan-topic\">%1</p>\n").arg(util::escapeAndLinkify(chan.topic));
     }
 
-    // Search form (plain GET, parameter names are v1-compatible)
+    // Search form (plain GET, parameter names are v1-compatible).
+    // Explicit rows: input + button, regexp checkbox right under the button
     html += QStringLiteral(
         "<form class=\"search\" method=\"get\" action=\"/%1/%2\">\n"
+        "<div class=\"search-row\">\n"
         "<input class=\"search-input\" type=\"search\" name=\"toSearch\" placeholder=\"search in #%3\">\n"
-        "<label class=\"search-rgx\"><input type=\"checkbox\" name=\"isRegexp\" value=\"on\"> regexp</label>\n"
         "<button class=\"search-btn\" type=\"submit\">grep</button>\n"
+        "</div>\n"
+        "<label class=\"search-rgx\"><input type=\"checkbox\" name=\"isRegexp\" value=\"on\"> regexp</label>\n"
         "</form>\n")
                 .arg(server.slug, channel, esc(channel));
 
@@ -147,6 +150,30 @@ QString channelHeader(const Site& site, const ServerSnapshot& server, const QStr
         html += QStringLiteral("</div></details>\n");
     }
     html += QStringLiteral("</header>\n");
+    return html;
+}
+
+// Clickable path as in v1: "/" is the channel root, then /year/month/day,
+// every segment except the last one is a link
+QString breadcrumbs(const QString& base, const QString& year,
+                    const QString& month = QString(), const QString& day = QString())
+{
+    QString html = QStringLiteral("<span class=\"crumbs\">");
+    html += QStringLiteral("<a href=\"%1\" title=\"archive\">/</a>").arg(base);
+    if (!year.isEmpty()) {
+        if (month.isEmpty()) {
+            html += QStringLiteral("<b>%1</b>").arg(year);
+        } else {
+            html += QStringLiteral("<a href=\"%1/%2\">%2</a>").arg(base, year);
+            if (day.isEmpty()) {
+                html += QStringLiteral("/<b>%1</b>").arg(month);
+            } else {
+                html += QStringLiteral("/<a href=\"%1/%2/%3\">%3</a>/<b>%4</b>")
+                            .arg(base, year, month, day);
+            }
+        }
+    }
+    html += QStringLiteral("</span>\n");
     return html;
 }
 
@@ -224,6 +251,9 @@ QString calendarPage(const Site& site, const ServerSnapshot& server, const QStri
 
     const QDate today = QDate::currentDate();
     QString quickNav = QStringLiteral("<div class=\"daynav\">\n");
+    if (!openYear.isEmpty()) {
+        quickNav += breadcrumbs('/' + server.slug + '/' + channel, openYear, openMonth);
+    }
     if (store.dayExists(channel, today)) {
         quickNav += QStringLiteral("<a class=\"daynav-link\" href=\"/%1/%2/%3\">today</a>\n")
                         .arg(server.slug, channel, today.toString(QStringLiteral("yyyy/MM/dd")));
@@ -282,8 +312,8 @@ QString dayPage(const Site& site, const ServerSnapshot& server, const QString& c
                ? QStringLiteral("<a class=\"daynav-link\" href=\"%1/%2\" title=\"%2\">&larr; prev</a>\n")
                      .arg(base, prev.toString(QStringLiteral("yyyy/MM/dd")))
                : QStringLiteral("<span class=\"daynav-link disabled\">&larr; prev</span>\n");
-    nav += QStringLiteral("<a class=\"daynav-link\" href=\"%1/%2\">archive</a>\n")
-               .arg(base, date.toString(QStringLiteral("yyyy/MM")));
+    nav += breadcrumbs(base, date.toString(QStringLiteral("yyyy")),
+                       date.toString(QStringLiteral("MM")), date.toString(QStringLiteral("dd")));
     nav += next.isValid()
                ? QStringLiteral("<a class=\"daynav-link\" href=\"%1/%2\" title=\"%2\">next &rarr;</a>\n")
                      .arg(base, next.toString(QStringLiteral("yyyy/MM/dd")))
@@ -375,19 +405,16 @@ QString searchPage(const Site& site, const ServerSnapshot& server, const QString
                 QStringLiteral("search: %1 @ #%2").arg(query, channel), content);
 }
 
-QString livePage(const Site& site, const ServerSnapshot& server, const QString& channel,
-                 const LogStore& store)
+QString livePage(const Site& site, const ServerSnapshot& server, const QString& channel)
 {
     QString content = channelHeader(site, server, channel,
                                     QStringLiteral("<span class=\"live-badge\">live</span>"));
 
-    const QDate today = QDate::currentDate();
     QString nav = QStringLiteral("<div class=\"daynav\">\n");
-    nav += QStringLiteral("<a class=\"daynav-link\" href=\"/%1/%2\">archive</a>\n").arg(server.slug, channel);
-    if (store.dayExists(channel, today)) {
-        nav += QStringLiteral("<a class=\"daynav-link\" href=\"/%1/%2/%3\">today log</a>\n")
-                   .arg(server.slug, channel, today.toString(QStringLiteral("yyyy/MM/dd")));
-    }
+    // live.js points it to the page the reader came from (same-origin referrer);
+    // the channel archive is the no-referrer fallback
+    nav += QStringLiteral("<a class=\"daynav-link\" id=\"live-back\" href=\"/%1/%2\">&larr; back</a>\n")
+               .arg(server.slug, channel);
     // Animated dots, green while the network works, red otherwise (as in v1)
     nav += QStringLiteral("<span class=\"live-dots\" id=\"live-status\">.</span>\n");
     nav += QStringLiteral("</div>\n");

@@ -11,6 +11,19 @@
 
     var server = log.dataset.server;
     var channel = log.dataset.channel;
+
+    // "back" returns to the page the reader came from; the default href
+    // (channel archive) stays when there is no same-origin referrer
+    var back = document.getElementById("live-back");
+    if (back && document.referrer) {
+        try {
+            var ref = new URL(document.referrer);
+            if (ref.origin === window.location.origin
+                    && ref.pathname !== window.location.pathname) {
+                back.href = document.referrer;
+            }
+        } catch (e) { /* keep the fallback */ }
+    }
     var lastId = "0";
     var networkOk = true;
     var POLL_MS = 3000;
