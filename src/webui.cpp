@@ -240,7 +240,7 @@ void WebUi::setupRoutes()
                     return html(render::errorPage(site, QStringLiteral("404"), QStringLiteral("No such channel")),
                                 QHttpServerResponse::StatusCode::NotFound);
                 }
-                return html(render::livePage(site, server, channel));
+                return html(render::livePage(site, server, channel, *m_stores[slug]));
             });
         });
 

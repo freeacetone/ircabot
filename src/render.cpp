@@ -377,7 +377,8 @@ QString searchPage(const Site& site, const ServerSnapshot& server, const QString
                 QStringLiteral("search: %1 @ #%2").arg(query, channel), content);
 }
 
-QString livePage(const Site& site, const ServerSnapshot& server, const QString& channel)
+QString livePage(const Site& site, const ServerSnapshot& server, const QString& channel,
+                 const LogStore& store)
 {
     QString content = channelHeader(site, server, channel,
                                     QStringLiteral("<span class=\"live-badge\">live</span>"));
@@ -385,9 +386,12 @@ QString livePage(const Site& site, const ServerSnapshot& server, const QString& 
     const QDate today = QDate::currentDate();
     QString nav = QStringLiteral("<div class=\"daynav\">\n");
     nav += QStringLiteral("<a class=\"daynav-link\" href=\"/%1/%2\">archive</a>\n").arg(server.slug, channel);
-    nav += QStringLiteral("<a class=\"daynav-link\" href=\"/%1/%2/%3\">today log</a>\n")
-               .arg(server.slug, channel, today.toString(QStringLiteral("yyyy/MM/dd")));
-    nav += QStringLiteral("<span class=\"daynav-link disabled\" id=\"live-status\">connecting...</span>\n");
+    if (store.dayExists(channel, today)) {
+        nav += QStringLiteral("<a class=\"daynav-link\" href=\"/%1/%2/%3\">today log</a>\n")
+                   .arg(server.slug, channel, today.toString(QStringLiteral("yyyy/MM/dd")));
+    }
+    // Animated dots, green while the network works, red otherwise (as in v1)
+    nav += QStringLiteral("<span class=\"live-dots\" id=\"live-status\">.</span>\n");
     nav += QStringLiteral("</div>\n");
     content += nav;
 

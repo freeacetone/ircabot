@@ -40,7 +40,8 @@ QString dayPage(const Site& site, const ServerSnapshot& server, const QString& c
                 const LogStore& store, const QDate& date);
 QString searchPage(const Site& site, const ServerSnapshot& server, const QString& channel,
                    const QString& query, bool regexp, const SearchResult& result);
-QString livePage(const Site& site, const ServerSnapshot& server, const QString& channel);
+QString livePage(const Site& site, const ServerSnapshot& server, const QString& channel,
+                 const LogStore& store);
 QString errorPage(const Site& site, const QString& title, const QString& text);
 
 } // namespace ircabot::render

@@ -359,6 +359,17 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
 .daynav-link.live { color: var(--green); border-color: var(--glow-green); }
 .daynav-link.live:hover { box-shadow: 0 0 9px var(--glow-green); }
 
+/* Real time network indicator: animated dots, green = OK, red = trouble */
+.live-dots {
+    display: inline-block;
+    min-width: 3ch;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--green);
+    text-shadow: 0 0 8px var(--glow-green);
+}
+.live-dots.bad { color: var(--red); text-shadow: 0 0 8px var(--red); }
+
 /* ------------------------------------------------- log lines */
 
 .log {

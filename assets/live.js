@@ -12,14 +12,17 @@
     var server = log.dataset.server;
     var channel = log.dataset.channel;
     var lastId = "0";
-    var failures = 0;
+    var networkOk = true;
     var POLL_MS = 3000;
+    var DOTS_MS = 700;
     var MAX_LINES = 500;
 
-    function setStatus(text, ok) {
+    // Animated dots: green while the network works, red otherwise (as in v1)
+    function animateDots() {
         if (!status) return;
-        status.textContent = text;
-        status.style.color = ok ? "var(--green)" : "var(--red)";
+        var dots = status.textContent;
+        status.textContent = dots.length >= 3 ? "." : dots + ".";
+        status.className = networkOk ? "live-dots" : "live-dots bad";
     }
 
     function appendMessage(msg) {
@@ -56,19 +59,19 @@
         request.open("GET", "/ajax/" + server + "/" + channel + "?after=" + lastId, true);
         request.timeout = POLL_MS * 2;
         request.onload = function () {
-            failures = 0;
             var data;
             try {
                 data = JSON.parse(request.responseText);
             } catch (e) {
-                setStatus("bad answer", false);
+                networkOk = false;
                 return;
             }
             if (!data.ok) {
-                setStatus("error", false);
+                networkOk = false;
                 return;
             }
-            setStatus(data.connected ? "receiving" : "bot offline", data.connected);
+            // Network is fine; red dots also when the bot lost its IRC server
+            networkOk = data.connected;
 
             var atBottom =
                 window.innerHeight + window.scrollY >= document.body.offsetHeight - 60;
@@ -82,13 +85,12 @@
             }
         };
         request.onerror = request.ontimeout = function () {
-            failures++;
-            setStatus("connection lost", false);
+            networkOk = false;
         };
         request.send();
     }
 
-    setStatus("connecting...", true);
     poll();
     setInterval(poll, POLL_MS);
+    setInterval(animateDots, DOTS_MS);
 })();
