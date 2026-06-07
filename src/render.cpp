@@ -79,7 +79,8 @@ QString sidebar(const Site& site, const PageRef& ref)
 }
 
 QString page(const Site& site, const PageRef& ref, const QString& title,
-             const QString& content, const QString& headExtra = QString())
+             const QString& content, const QString& headExtra = QString(),
+             const QString& mainClass = QString())
 {
     QString htmlClass;
     if (site.theme == QStringLiteral("dark")) {
@@ -105,7 +106,8 @@ QString page(const Site& site, const PageRef& ref, const QString& title,
         "<div class=\"frame\">\n")
                 .arg(htmlClass, esc(title), headExtra);
     html += sidebar(site, ref);
-    html += QStringLiteral("<main class=\"content\">\n") + content + QStringLiteral("</main>\n");
+    html += QStringLiteral("<main class=\"content%1\">\n").arg(mainClass.isEmpty() ? QString() : ' ' + mainClass)
+          + content + QStringLiteral("</main>\n");
     html += QStringLiteral("</div>\n</body>\n</html>\n");
     return html;
 }
@@ -422,7 +424,8 @@ QString dayPage(const Site& site, const ServerSnapshot& server, const QString& c
     }
 
     return page(site, {server.slug, channel},
-                '#' + channel + ' ' + dateStr + " @ " + server.displayName, content);
+                '#' + channel + ' ' + dateStr + " @ " + server.displayName, content,
+                QString(), QStringLiteral("chat"));
 }
 
 QString searchPage(const Site& site, const ServerSnapshot& server, const QString& channel,
@@ -504,7 +507,8 @@ QString livePage(const Site& site, const ServerSnapshot& server, const QString& 
 
     return page(site, {server.slug, channel},
                 QStringLiteral("live: #%1 @ %2").arg(channel, server.displayName), content,
-                QStringLiteral("<script src=\"/live.js\" defer></script>\n"));
+                QStringLiteral("<script src=\"/live.js\" defer></script>\n"),
+                QStringLiteral("chat"));
 }
 
 QString errorPage(const Site& site, const QString& title, const QString& text)

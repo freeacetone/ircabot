@@ -86,15 +86,16 @@
             // Network is fine; red dots also when the bot lost its IRC server
             networkOk = data.connected;
 
+            // The log block scrolls internally (page layout is fixed)
             var atBottom =
-                window.innerHeight + window.scrollY >= document.body.offsetHeight - 60;
+                log.scrollHeight - log.scrollTop - log.clientHeight < 60;
             var messages = data.messages || [];
             for (var i = 0; i < messages.length; i++) {
                 appendMessage(messages[i]);
             }
             lastId = data.last || lastId;
             if (messages.length > 0 && atBottom) {
-                window.scrollTo(0, document.body.scrollHeight);
+                log.scrollTop = log.scrollHeight;
             }
         };
         request.onerror = request.ontimeout = function () {

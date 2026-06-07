@@ -120,9 +120,11 @@ body {
 a { color: var(--amber); text-decoration: none; }
 a:hover { color: var(--amber-bright); text-decoration: underline; }
 
+body { overflow: hidden; } /* the page itself never scrolls */
+
 .frame {
     display: flex;
-    min-height: 100vh;
+    height: 100vh;
     max-width: 1280px;
     margin: 0 auto;
 }
@@ -139,6 +141,7 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
     padding: 18px 14px;
     border-right: 1px solid var(--panel-edge);
     background: linear-gradient(180deg, var(--tint-amber), transparent 140px);
+    overflow-y: auto; /* menu and copyright stay put, scroll only if huge */
 }
 
 .side-top {
@@ -232,7 +235,22 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
 .content {
     flex: 1 1 auto;
     min-width: 0;
-    padding: 18px 24px 40px;
+    min-height: 0;
+    padding: 18px 24px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto; /* long archive/search pages scroll here */
+}
+.content > * { flex: 0 0 auto; }
+
+/* Chat pages: the log block scrolls internally, everything else is fixed */
+.content.chat { overflow: hidden; }
+.content.chat .log {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--amber-soft) transparent;
 }
 
 .chan-head {
@@ -512,6 +530,8 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
         border-bottom: 1px solid var(--panel-edge);
         padding: 10px 14px;
         background: var(--panel);
+        overflow-y: auto;
+        max-height: 60vh; /* opened burger menu scrolls inside if long */
     }
     .side-top { padding-bottom: 0; border-bottom: none; }
     .nav-burger {
