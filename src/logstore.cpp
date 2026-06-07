@@ -9,6 +9,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
 #include <QRegularExpression>
 
 #include <algorithm>
@@ -106,6 +107,34 @@ QStringList LogStore::months(const QString& channel, const QString& year) const
 QStringList LogStore::days(const QString& channel, const QString& year, const QString& month) const
 {
     return sortedNumericEntries(channelDir(channel) + year + '/' + month, 2);
+}
+
+QList<DayEntry> LogStore::dayEntries(const QString& channel, const QString& year, const QString& month) const
+{
+    QList<DayEntry> result;
+    const QString dir = channelDir(channel) + year + '/' + month + '/';
+    const QStringList dayList = days(channel, year, month);
+    for (const QString& d : dayList) {
+        result.push_back({d, QFileInfo(dir + d + QStringLiteral(".txt")).size()});
+    }
+    return result;
+}
+
+QList<MonthEntry> LogStore::monthEntries(const QString& channel, const QString& year) const
+{
+    QList<MonthEntry> result;
+    const QStringList monthList = months(channel, year);
+    for (const QString& m : monthList) {
+        MonthEntry entry;
+        entry.month = m;
+        const QList<DayEntry> dayList = dayEntries(channel, year, m);
+        entry.dayCount = static_cast<int>(dayList.size());
+        for (const DayEntry& d : dayList) {
+            entry.bytes += d.bytes;
+        }
+        result.push_back(entry);
+    }
+    return result;
 }
 
 bool LogStore::dayExists(const QString& channel, const QDate& date) const

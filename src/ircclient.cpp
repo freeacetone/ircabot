@@ -6,6 +6,8 @@
 #include "ircclient.h"
 #include "util.h"
 
+#include "version.h"
+
 #include <QDateTime>
 #include <QDebug>
 #include <QRandomGenerator>
@@ -64,9 +66,26 @@ IrcClient::IrcClient(const ServerConfig& config, RuntimeState* state, LogStore* 
     m_state->setBotNick(m_config.slug, m_config.nick);
 }
 
+IrcClient::~IrcClient()
+{
+    // Graceful shutdown as in v1: the server should not keep a ghost session
+    if (m_socket && m_socket->state() == QAbstractSocket::ConnectedState) {
+        m_socket->write(QByteArray("QUIT :IRCaBot ") + VERSION + ": shutting down\r\n");
+        m_socket->flush();
+        m_socket->disconnectFromHost();
+        if (m_socket->state() != QAbstractSocket::UnconnectedState) {
+            m_socket->waitForDisconnected(1000);
+        }
+    }
+}
+
 void IrcClient::start()
 {
     if (m_socket) {
+        // The old socket must not drive the new session: a late disconnected()
+        // or errorOccurred() from it would schedule a bogus reconnect
+        m_socket->disconnect(this);
+        m_socket->abort();
         m_socket->deleteLater();
     }
     m_socket = new QSslSocket(this);

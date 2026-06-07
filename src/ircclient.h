@@ -24,6 +24,7 @@ class IrcClient : public QObject
     Q_OBJECT
 public:
     IrcClient(const ServerConfig& config, RuntimeState* state, LogStore* store, QObject* parent = nullptr);
+    ~IrcClient() override;
 
     void start();
 

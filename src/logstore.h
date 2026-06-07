@@ -26,6 +26,19 @@ struct SearchHit
     QString text;
 };
 
+struct DayEntry
+{
+    QString day;       // "14"
+    qint64 bytes = 0;  // log file size
+};
+
+struct MonthEntry
+{
+    QString month;     // "05"
+    int dayCount = 0;
+    qint64 bytes = 0;  // total month size
+};
+
 struct SearchResult
 {
     QList<SearchHit> hits;
@@ -60,6 +73,8 @@ public:
     QStringList years(const QString& channel) const;
     QStringList months(const QString& channel, const QString& year) const;
     QStringList days(const QString& channel, const QString& year, const QString& month) const;
+    QList<DayEntry> dayEntries(const QString& channel, const QString& year, const QString& month) const;
+    QList<MonthEntry> monthEntries(const QString& channel, const QString& year) const;
     bool dayExists(const QString& channel, const QDate& date) const;
     QDate adjacentDay(const QString& channel, const QDate& from, bool forward) const;
     QList<LogLine> readDay(const QString& channel, const QDate& date) const;

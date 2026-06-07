@@ -153,6 +153,25 @@ QString channelHeader(const Site& site, const ServerSnapshot& server, const QStr
     return html;
 }
 
+QString monthName(const QString& month)
+{
+    static constexpr const char* MONTH_NAMES[] = {"jan", "feb", "mar", "apr", "may", "jun",
+                                                  "jul", "aug", "sep", "oct", "nov", "dec"};
+    const int number = month.toInt();
+    return QString::fromUtf8((number >= 1 && number <= 12) ? MONTH_NAMES[number - 1] : "???");
+}
+
+QString humanSize(qint64 bytes)
+{
+    if (bytes < 1024) {
+        return QStringLiteral("%1 B").arg(bytes);
+    }
+    if (bytes < 1024 * 1024) {
+        return QStringLiteral("%1 KB").arg(QString::number(bytes / 1024.0, 'f', 1));
+    }
+    return QStringLiteral("%1 MB").arg(QString::number(bytes / 1024.0 / 1024.0, 'f', 1));
+}
+
 // Clickable path as in v1: "/" is the channel root, then /year/month/day,
 // every segment except the last one is a link
 QString breadcrumbs(const QString& base, const QString& year,
@@ -243,17 +262,12 @@ QString aboutPage(const Site& site, const ServerSnapshot& server, const QString&
 }
 
 QString calendarPage(const Site& site, const ServerSnapshot& server, const QString& channel,
-                     const LogStore& store, const QString& openYear, const QString& openMonth)
+                     const LogStore& store)
 {
-    static constexpr const char* MONTH_NAMES[] = {"jan", "feb", "mar", "apr", "may", "jun",
-                                                  "jul", "aug", "sep", "oct", "nov", "dec"};
     QString content = channelHeader(site, server, channel, QStringLiteral("archive"));
 
     const QDate today = QDate::currentDate();
     QString quickNav = QStringLiteral("<div class=\"daynav\">\n");
-    if (!openYear.isEmpty()) {
-        quickNav += breadcrumbs('/' + server.slug + '/' + channel, openYear, openMonth);
-    }
     if (store.dayExists(channel, today)) {
         quickNav += QStringLiteral("<a class=\"daynav-link\" href=\"/%1/%2/%3\">today</a>\n")
                         .arg(server.slug, channel, today.toString(QStringLiteral("yyyy/MM/dd")));
@@ -268,32 +282,92 @@ QString calendarPage(const Site& site, const ServerSnapshot& server, const QStri
     const QStringList years = store.years(channel);
     if (years.isEmpty()) {
         content += QStringLiteral("<section class=\"panel\">No messages logged yet.</section>\n");
-    }
-    for (auto yearIt = years.rbegin(); yearIt != years.rend(); ++yearIt) {
-        const QString& y = *yearIt;
-        const bool yOpen = (y == openYear) || (openYear.isEmpty() && yearIt == years.rbegin());
-        content += QStringLiteral("<details class=\"year\"%1><summary>%2</summary>\n")
-                       .arg(yOpen ? QStringLiteral(" open") : QString(), y);
-        const QStringList months = store.months(channel, y);
-        for (auto monthIt = months.rbegin(); monthIt != months.rend(); ++monthIt) {
-            const QString& m = *monthIt;
-            const int monthNumber = m.toInt();
-            const char* const monthName = (monthNumber >= 1 && monthNumber <= 12)
-                                              ? MONTH_NAMES[monthNumber - 1] : "???";
-            const bool mOpen = yOpen && ((m == openMonth) || (openMonth.isEmpty() && monthIt == months.rbegin()));
-            content += QStringLiteral("<details class=\"month\"%1><summary>%2 <span class=\"month-name\">%3</span></summary>"
-                                      "<div class=\"days\">\n")
-                           .arg(mOpen ? QStringLiteral(" open") : QString(), m, QString::fromUtf8(monthName));
-            for (const QString& d : store.days(channel, y, m)) {
-                content += QStringLiteral("<a class=\"day\" href=\"/%1/%2/%3/%4/%5\">%5</a>\n")
-                               .arg(server.slug, channel, y, m, d);
+    } else {
+        content += QStringLiteral("<section class=\"panel arch\">\n");
+        for (auto yearIt = years.rbegin(); yearIt != years.rend(); ++yearIt) {
+            const QList<MonthEntry> monthList = store.monthEntries(channel, *yearIt);
+            int dayCount = 0;
+            qint64 bytes = 0;
+            for (const MonthEntry& m : monthList) {
+                dayCount += m.dayCount;
+                bytes += m.bytes;
             }
-            content += QStringLiteral("</div></details>\n");
+            content += QStringLiteral("<a class=\"arch-row\" href=\"/%1/%2/%3\">"
+                                      "<span class=\"arch-name\">%3</span>"
+                                      "<span class=\"arch-meta\">%4 month%5, %6 day%7, %8</span></a>\n")
+                           .arg(server.slug, channel, *yearIt,
+                                QString::number(monthList.size()),
+                                monthList.size() == 1 ? QString() : QStringLiteral("s"),
+                                QString::number(dayCount),
+                                dayCount == 1 ? QString() : QStringLiteral("s"),
+                                humanSize(bytes));
         }
-        content += QStringLiteral("</details>\n");
+        content += QStringLiteral("</section>\n");
     }
 
     return page(site, {server.slug, channel}, '#' + channel + " @ " + server.displayName, content);
+}
+
+QString yearPage(const Site& site, const ServerSnapshot& server, const QString& channel,
+                 const LogStore& store, const QString& year)
+{
+    QString content = channelHeader(site, server, channel, QStringLiteral("archive"));
+
+    const QString base = '/' + server.slug + '/' + channel;
+    QString nav = QStringLiteral("<div class=\"daynav\">\n");
+    nav += breadcrumbs(base, year);
+    nav += QStringLiteral("</div>\n");
+    content += nav;
+
+    const QList<MonthEntry> monthList = store.monthEntries(channel, year);
+    if (monthList.isEmpty()) {
+        content += QStringLiteral("<section class=\"panel\">No logs for this year.</section>\n");
+    } else {
+        content += QStringLiteral("<section class=\"panel arch\">\n");
+        for (auto it = monthList.rbegin(); it != monthList.rend(); ++it) {
+            content += QStringLiteral("<a class=\"arch-row\" href=\"%1/%2/%3\">"
+                                      "<span class=\"arch-name\">%3 <span class=\"month-name\">%4</span></span>"
+                                      "<span class=\"arch-meta\">%5 day%6, %7</span></a>\n")
+                           .arg(base, year, it->month,
+                                monthName(it->month),
+                                QString::number(it->dayCount),
+                                it->dayCount == 1 ? QString() : QStringLiteral("s"),
+                                humanSize(it->bytes));
+        }
+        content += QStringLiteral("</section>\n");
+    }
+
+    return page(site, {server.slug, channel},
+                '#' + channel + ' ' + year + " @ " + server.displayName, content);
+}
+
+QString monthPage(const Site& site, const ServerSnapshot& server, const QString& channel,
+                  const LogStore& store, const QString& year, const QString& month)
+{
+    QString content = channelHeader(site, server, channel, QStringLiteral("archive"));
+
+    const QString base = '/' + server.slug + '/' + channel;
+    QString nav = QStringLiteral("<div class=\"daynav\">\n");
+    nav += breadcrumbs(base, year, month);
+    nav += QStringLiteral("</div>\n");
+    content += nav;
+
+    const QList<DayEntry> dayList = store.dayEntries(channel, year, month);
+    if (dayList.isEmpty()) {
+        content += QStringLiteral("<section class=\"panel\">No logs for this month.</section>\n");
+    } else {
+        content += QStringLiteral("<section class=\"panel arch\">\n");
+        for (auto it = dayList.rbegin(); it != dayList.rend(); ++it) {
+            content += QStringLiteral("<a class=\"arch-row\" href=\"%1/%2/%3/%4\">"
+                                      "<span class=\"arch-name\">%4</span>"
+                                      "<span class=\"arch-meta\">%5</span></a>\n")
+                           .arg(base, year, month, it->day, humanSize(it->bytes));
+        }
+        content += QStringLiteral("</section>\n");
+    }
+
+    return page(site, {server.slug, channel},
+                '#' + channel + ' ' + year + '-' + month + " @ " + server.displayName, content);
 }
 
 QString dayPage(const Site& site, const ServerSnapshot& server, const QString& channel,

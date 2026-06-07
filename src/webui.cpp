@@ -337,13 +337,16 @@ QHttpServerResponse WebUi::servePage(const render::Site& site,
     }
 
     if (year.isEmpty()) {
-        return html(render::calendarPage(site, server, channel, store, {}, {}));
+        return html(render::calendarPage(site, server, channel, store));
     }
     if (!safeSegment(year) || (!month.isEmpty() && !safeSegment(month))) {
         return notFound(QStringLiteral("Bad date"));
     }
+    if (month.isEmpty()) {
+        return html(render::yearPage(site, server, channel, store, year));
+    }
     if (dayRaw.isEmpty()) {
-        return html(render::calendarPage(site, server, channel, store, year, month));
+        return html(render::monthPage(site, server, channel, store, year, month));
     }
 
     QString day = dayRaw;

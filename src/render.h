@@ -35,7 +35,11 @@ struct PageRef // what is highlighted in the sidebar
 QString mainPage(const Site& site, const QString& mainPageText);
 QString aboutPage(const Site& site, const ServerSnapshot& server, const QString& aboutHtml);
 QString calendarPage(const Site& site, const ServerSnapshot& server, const QString& channel,
-                     const LogStore& store, const QString& openYear, const QString& openMonth);
+                     const LogStore& store);
+QString yearPage(const Site& site, const ServerSnapshot& server, const QString& channel,
+                 const LogStore& store, const QString& year);
+QString monthPage(const Site& site, const ServerSnapshot& server, const QString& channel,
+                  const LogStore& store, const QString& year, const QString& month);
 QString dayPage(const Site& site, const ServerSnapshot& server, const QString& channel,
                 const LogStore& store, const QDate& date);
 QString searchPage(const Site& site, const ServerSnapshot& server, const QString& channel,

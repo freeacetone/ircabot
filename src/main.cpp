@@ -13,10 +13,41 @@
 #include <QCoreApplication>
 #include <QDebug>
 #include <QFile>
+#include <QSocketNotifier>
+
+#include <csignal>
+#include <sys/socket.h>
+#include <unistd.h>
 
 using namespace ircabot;
 
 namespace {
+
+// Self-pipe: convert SIGTERM/SIGINT into a clean event loop exit, so that
+// IrcClient destructors run and send QUIT to the servers
+int signalSocketPair[2] = {-1, -1};
+
+void unixSignalHandler(int)
+{
+    const char byte = 1;
+    const ssize_t unused = ::write(signalSocketPair[1], &byte, 1);
+    (void)unused;
+}
+
+void installSignalHandlers(QCoreApplication& app)
+{
+    if (::socketpair(AF_UNIX, SOCK_STREAM, 0, signalSocketPair) != 0) {
+        qWarning().noquote() << "Can't install signal handlers (socketpair failed)";
+        return;
+    }
+    static QSocketNotifier notifier(signalSocketPair[0], QSocketNotifier::Read);
+    QObject::connect(&notifier, &QSocketNotifier::activated, &app, [&app]() {
+        qInfo().noquote() << "Shutdown signal received, closing IRC connections...";
+        app.quit();
+    });
+    std::signal(SIGTERM, unixSignalHandler);
+    std::signal(SIGINT, unixSignalHandler);
+}
 
 void printHelp()
 {
@@ -68,6 +99,8 @@ int main(int argc, char* argv[])
 
     qInfo().noquote() << "IRCaBot" << VERSION << "| Source code:" << SOURCE_URL;
     qInfo().noquote() << "GPLv3 (c) acetone," << COPYRIGHT_YEARS << "\n";
+
+    installSignalHandlers(app);
 
     try {
         const Config config(configFile);

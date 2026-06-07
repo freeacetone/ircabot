@@ -240,6 +240,7 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
 }
 
 .chan-title {
+    order: 1; /* row 1: title left, search right; topic and online below */
     display: flex;
     align-items: baseline;
     gap: 9px;
@@ -275,6 +276,7 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
 }
 
 .chan-topic {
+    order: 3;
     margin: 0;
     flex-basis: 100%;
     color: var(--ink-dim);
@@ -286,6 +288,7 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
 /* search: compact, top right corner; the input grows on focus.
    Row 1: input + button, row 2: regexp checkbox right under the button */
 .search {
+    order: 2;
     display: flex;
     flex-direction: column;
     align-items: flex-end;
@@ -350,7 +353,7 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
 .search-date a:hover { color: var(--amber); }
 
 /* online list */
-.online { flex-basis: 100%; }
+.online { order: 4; flex-basis: 100%; }
 .online summary {
     cursor: pointer;
     color: var(--ink-dim);
@@ -469,55 +472,22 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
 .card-chans a { color: var(--ink-dim); width: fit-content; }
 .card-chans a:hover { color: var(--amber); }
 
-/* ------------------------------------------------- calendar */
+/* Archive listings: year/month/day rows with log weight */
+.panel.arch { padding: 8px 0; }
 
-.year {
-    margin: 10px 0;
-    border: 1px solid var(--panel-edge);
-    border-radius: 5px;
-    background: var(--panel);
-}
-.year > summary {
-    cursor: pointer;
-    padding: 8px 16px;
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--amber);
-    user-select: none;
-}
-.year > summary:hover { text-shadow: 0 0 12px var(--glow-amber-strong); }
-.year[open] > summary { border-bottom: 1px dashed var(--panel-edge); }
-
-.month { margin: 6px 14px; }
-.month > summary {
-    cursor: pointer;
-    color: var(--ink);
-    user-select: none;
-    width: fit-content;
-}
-.month > summary:hover { color: var(--amber); }
-.month-name { color: var(--ink-faint); }
-
-.days {
+.arch-row {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 8px 0 10px 18px;
-}
-
-.day {
-    border: 1px solid var(--panel-edge);
-    border-radius: 3px;
-    padding: 2px 9px;
-    color: var(--ink-dim);
-    background: var(--bg-deep);
-}
-.day:hover {
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 6px 20px;
     color: var(--amber);
-    border-color: var(--amber-soft);
-    text-decoration: none;
-    box-shadow: 0 0 8px var(--glow-amber);
 }
+.arch-row:hover { background: var(--hover-line); text-decoration: none; }
+.arch-name { font-weight: 700; font-size: 15px; }
+.arch-meta { color: var(--ink-dim); font-size: 12px; }
+
+.month-name { color: var(--ink-faint); font-weight: 400; }
 
 /* ------------------------------------------------- responsive */
 
@@ -567,6 +537,6 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
     .search-input { width: auto; flex: 1 1 auto; }
     .search-input:focus { width: auto; }
     .daynav-link { padding: 5px 12px; } /* bigger touch targets */
-    .day { padding: 5px 11px; }
+    .arch-row { padding: 9px 14px; }
     .online-list { gap: 8px 16px; }
 }
