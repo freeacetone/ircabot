@@ -11,6 +11,7 @@
 
 #include <QHash>
 #include <QObject>
+#include <QSet>
 #include <QSslSocket>
 #include <QTimer>
 
@@ -33,6 +34,7 @@ private slots:
     void onWatchdog();
     void onNamesRefresh();
     void onNickRecover();
+    void onEnsureJoined();
 
 private:
     struct IrcMessage
@@ -62,6 +64,9 @@ private:
     static constexpr int NAMES_REFRESH_MS = 90000;
     static constexpr int NICK_RECOVER_MS = 60000;
     static constexpr int TRIGGER_COOLDOWN_MS = 3000;
+    // Servers may reject early JOIN (UnrealIRCd: "you must be connected for
+    // at least 10 seconds"), so missing channels are re-joined periodically.
+    static constexpr int JOIN_RETRY_MS = 11000;
 
     ServerConfig m_config;
     RuntimeState* m_state;
@@ -78,11 +83,13 @@ private:
 
     QHash<QString, QStringList> m_online;        // "#channel" -> nicks with prefixes
     QHash<QString, QStringList> m_namesAccum;    // NAMES replies being accumulated
+    QSet<QString> m_joined;                      // really joined channels, lowercased
 
     QTimer m_reconnectTimer;
     QTimer m_watchdogTimer;
     QTimer m_namesTimer;
     QTimer m_nickRecoverTimer;
+    QTimer m_joinTimer;
 };
 
 } // namespace ircabot

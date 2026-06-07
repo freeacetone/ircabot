@@ -58,6 +58,7 @@ IrcClient::IrcClient(const ServerConfig& config, RuntimeState* state, LogStore* 
     connect(&m_watchdogTimer, &QTimer::timeout, this, &IrcClient::onWatchdog);
     connect(&m_namesTimer, &QTimer::timeout, this, &IrcClient::onNamesRefresh);
     connect(&m_nickRecoverTimer, &QTimer::timeout, this, &IrcClient::onNickRecover);
+    connect(&m_joinTimer, &QTimer::timeout, this, &IrcClient::onEnsureJoined);
 
     m_state->registerServer(m_config.displayName, m_config.slug, m_config.channels);
     m_state->setBotNick(m_config.slug, m_config.nick);
@@ -74,6 +75,7 @@ void IrcClient::start()
     m_keepAliveSent = false;
     m_online.clear();
     m_namesAccum.clear();
+    m_joined.clear();
 
     connect(m_socket, &QSslSocket::connected, this, &IrcClient::onConnected);
     connect(m_socket, &QSslSocket::disconnected, this, &IrcClient::onDisconnected);
@@ -114,6 +116,7 @@ void IrcClient::onDisconnected()
     m_watchdogTimer.stop();
     m_namesTimer.stop();
     m_nickRecoverTimer.stop();
+    m_joinTimer.stop();
     m_registered = false;
     m_state->setConnected(m_config.slug, false);
 
@@ -238,10 +241,18 @@ void IrcClient::onRegistered()
     }
     send("MODE " + currentNick() + " +B", false); // mark as bot, ignored by servers without +B
 
-    for (const QString& ch : m_config.channels) {
-        send("JOIN " + ch);
-    }
+    onEnsureJoined();
+    m_joinTimer.start(JOIN_RETRY_MS);
     m_namesTimer.start(NAMES_REFRESH_MS);
+}
+
+void IrcClient::onEnsureJoined()
+{
+    for (const QString& ch : m_config.channels) {
+        if (!m_joined.contains(ch.toLower())) {
+            send("JOIN " + ch);
+        }
+    }
 }
 
 void IrcClient::processLine(const QString& line)
@@ -317,6 +328,7 @@ void IrcClient::processLine(const QString& line)
         const QString channel = msg.params.isEmpty() ? msg.trailing : msg.params.first();
         if (msg.prefixNick == currentNick()) {
             consoleLog("I joined to " + channel);
+            m_joined.insert(channel.toLower());
             return;
         }
         if (!m_online[channel].contains(msg.prefixNick)) {
@@ -327,6 +339,11 @@ void IrcClient::processLine(const QString& line)
     }
     if (msg.command == QStringLiteral("PART")) {
         const QString channel = msg.params.isEmpty() ? msg.trailing : msg.params.first();
+        if (msg.prefixNick == currentNick()) {
+            consoleLog("I left " + channel);
+            m_joined.remove(channel.toLower());
+            return;
+        }
         auto& list = m_online[channel];
         list.removeAll(msg.prefixNick);
         for (const char* p : {"~", "&", "@", "%", "+"}) {
@@ -339,6 +356,11 @@ void IrcClient::processLine(const QString& line)
         if (msg.params.size() >= 2) {
             const QString channel = msg.params[0];
             const QString victim = msg.params[1];
+            if (victim == currentNick()) {
+                consoleLog("I was kicked from " + channel + " (" + msg.trailing + "), rejoining...");
+                m_joined.remove(channel.toLower());
+                return;
+            }
             auto& list = m_online[channel];
             list.removeAll(victim);
             for (const char* p : {"~", "&", "@", "%", "+"}) {
@@ -391,6 +413,15 @@ void IrcClient::processLine(const QString& line)
         if (!msg.params.isEmpty() && msg.params.first().startsWith('#')) {
             send("NAMES " + msg.params.first(), false);
         }
+        return;
+    }
+
+    // Error numerics (4xx/5xx) must be visible: UnrealIRCd, for example,
+    // rejects JOIN during the first seconds after connect (numeric 421)
+    if (msg.command.size() == 3 && (msg.command.startsWith('4') || msg.command.startsWith('5'))) {
+        consoleLog("Server numeric " + msg.command + ": "
+                   + msg.params.mid(1).join(' ')
+                   + (msg.trailing.isEmpty() ? QString() : " :" + msg.trailing));
         return;
     }
 }
