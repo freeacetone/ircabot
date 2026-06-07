@@ -194,26 +194,7 @@ QString mainPage(const Site& site, const QString& mainPageText)
     welcome.replace(QStringLiteral("%DAILY_REQUESTS%"), requestsCounter);
     content += QStringLiteral("<section class=\"panel\">%1</section>\n").arg(welcome);
 
-    content += QStringLiteral("<section class=\"grid\">\n");
-    const QList<ServerSnapshot> servers = site.state->snapshotAll();
-    for (const ServerSnapshot& srv : servers) {
-        content += QStringLiteral("<div class=\"card\">\n");
-        content += QStringLiteral("<a class=\"card-title\" href=\"/%1\"><span class=\"dot %2\"></span>%3</a>\n")
-                       .arg(srv.slug,
-                            srv.connected ? QStringLiteral("on") : QStringLiteral("off"),
-                            esc(srv.displayName));
-        content += QStringLiteral("<div class=\"card-bot\">bot: %1</div>\n").arg(esc(srv.botNick));
-        content += QStringLiteral("<div class=\"card-chans\">\n");
-        for (const QString& ch : srv.channels) {
-            const qsizetype online = srv.byChannel.value(ch).online.size();
-            content += QStringLiteral("<a href=\"/%1/%2\">#%3<span class=\"card-online\">%4</span></a>\n")
-                           .arg(srv.slug, ch, esc(ch),
-                                online > 0 ? QString::number(online) : QString());
-        }
-        content += QStringLiteral("</div>\n</div>\n");
-    }
-    content += QStringLiteral("</section>\n");
-
+    // No server list here: the sidebar menu already shows it
     return page(site, {}, site.serviceName, content);
 }
 

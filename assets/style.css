@@ -412,29 +412,9 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
 .panel.error { text-align: center; padding: 48px 20px; }
 .panel.error h1 { font-size: 42px; color: var(--amber); margin: 0 0 10px; }
 
-.grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 14px;
-    margin-top: 14px;
-}
-
-.card {
-    background: var(--panel);
-    border: 1px solid var(--panel-edge);
-    border-radius: 5px;
-    padding: 14px 16px;
-    transition: border-color 0.15s ease;
-}
-.card:hover { border-color: var(--amber-soft); }
-
-.card-title { color: var(--ink); font-weight: 700; font-size: 15px; }
-.card-bot { color: var(--ink-faint); font-size: 12px; margin: 4px 0 8px; }
-
 .card-chans { display: flex; flex-direction: column; gap: 2px; }
 .card-chans a { color: var(--ink-dim); width: fit-content; }
 .card-chans a:hover { color: var(--amber); }
-.card-online { color: var(--green); font-size: 11px; margin-left: 8px; }
 
 /* ------------------------------------------------- calendar */
 
