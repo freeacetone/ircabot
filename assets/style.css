@@ -283,13 +283,16 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
     padding-left: 10px;
 }
 
-/* search: compact, top right corner; the input grows on focus */
+/* search: compact, top right corner; the input grows on focus.
+   Row 1: input + button, row 2: regexp checkbox right under the input */
 .search {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 2px 8px;
     margin-left: auto;
     flex: 0 0 auto;
+    width: fit-content;
 }
 
 .search-input {
@@ -310,8 +313,21 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
     box-shadow: 0 0 8px var(--glow-amber);
 }
 
-.search-rgx { color: var(--ink-dim); font-size: 12px; cursor: pointer; user-select: none; }
-.search-rgx input { accent-color: var(--amber); cursor: pointer; }
+.search-rgx {
+    order: 3;
+    flex-basis: 100%;
+    display: flex;
+    align-items: center;
+    color: var(--ink-dim);
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+}
+.search-rgx input {
+    accent-color: var(--amber);
+    cursor: pointer;
+    margin: 0 4px 0 1px;
+}
 
 .search-btn {
     background: transparent;
@@ -533,8 +549,8 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
     .nick { white-space: normal; }
 
     /* Search takes its own full row again */
-    .search { flex-basis: 100%; margin-left: 0; flex-wrap: wrap; }
-    .search-input { width: auto; flex: 1 1 100%; }
+    .search { flex-basis: 100%; margin-left: 0; width: auto; }
+    .search-input { width: auto; flex: 1 1 auto; }
     .search-input:focus { width: auto; }
     .daynav-link { padding: 5px 12px; } /* bigger touch targets */
     .day { padding: 5px 11px; }
