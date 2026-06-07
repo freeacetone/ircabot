@@ -193,7 +193,7 @@ a:hover { color: var(--amber-bright); text-decoration: underline; }
     color: var(--ink-faint);
     font-size: 12px;
 }
-.side-theme-link { color: var(--ink-dim); margin-left: 2px; }
+.side-theme-link { color: var(--ink-dim); margin-right: 6px; }
 .side-theme-link.cur {
     color: var(--amber);
     border: 1px solid var(--amber-soft);

@@ -26,16 +26,14 @@ QString themeSwitcher(const Site& site)
     const QString back = QString::fromUtf8(
         QUrl::toPercentEncoding(site.path.isEmpty() ? QStringLiteral("/") : site.path));
 
-    const struct { const char* mode; const char* label; } MODES[] = {
-        {"auto", "auto"}, {"dark", "dark"}, {"light", "light"},
-    };
-    QString html = QStringLiteral("<div class=\"side-theme\">theme:");
-    for (const auto& m : MODES) {
-        const QString mode = QString::fromUtf8(m.mode);
-        const bool current = (site.theme == mode) || (site.theme.isEmpty() && mode == QStringLiteral("auto"));
-        html += QStringLiteral(" <a class=\"side-theme-link%1\" href=\"/~theme/%2?back=%3\">%4</a>")
-                    .arg(current ? QStringLiteral(" cur") : QString(),
-                         mode, back, QString::fromUtf8(m.label));
+    // Without an explicit choice the browser preference (prefers-color-scheme)
+    // applies and nothing is highlighted here
+    QString html = QStringLiteral("<div class=\"side-theme\">");
+    for (const char* mode : {"dark", "light"}) {
+        const QString modeStr = QString::fromUtf8(mode);
+        html += QStringLiteral("<a class=\"side-theme-link%1\" href=\"/~theme/%2?back=%3\">%2</a> ")
+                    .arg(site.theme == modeStr ? QStringLiteral(" cur") : QString(),
+                         modeStr, back);
     }
     html += QStringLiteral("</div>\n");
     return html;
