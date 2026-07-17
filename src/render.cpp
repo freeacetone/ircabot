@@ -72,7 +72,7 @@ QString sidebar(const Site& site, const PageRef& ref)
         html += QStringLiteral("</div>\n");
     }
     html += themeSwitcher(site);
-    html += QStringLiteral("<a class=\"side-foot\" href=\"%1\" rel=\"nofollow noopener\">IRCaBot %2<br>GPLv3 &copy; acetone, %3</a>\n")
+    html += QStringLiteral("<a class=\"side-foot\" href=\"%1\" rel=\"nofollow noopener\" target=\"_blank\">IRCaBot %2<br>GPLv3 &copy; acetone, %3</a>\n")
                 .arg(QString::fromUtf8(SOURCE_URL), QString::fromUtf8(VERSION), QString::fromUtf8(COPYRIGHT_YEARS));
     html += QStringLiteral("</div>\n</nav>\n");
     return html;
