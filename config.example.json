@@ -22,8 +22,8 @@
     },
 
     "triggers": {
-        "_comment": "Bot answers when addressed: 'botnick, version'. %CHANNEL_FOR_URL% -> server_slug/channel",
-        "version": "IRCaBot 3.0.0",
+        "_comment": "Bot answers when addressed: 'botnick, version'. %CHANNEL_FOR_URL% -> server_slug/channel, %VERSION% -> running version",
+        "version": "IRCaBot %VERSION%",
         "webui": "http://example.com/%CHANNEL_FOR_URL%"
     },
 

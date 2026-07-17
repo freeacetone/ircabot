@@ -43,7 +43,8 @@ Complete rewrite of IRCaBot on Qt6: only the logger and the web UI, nothing else
 - Messages starting with a dot are stored as "Blinded message";
 - CTCP ACTION (`/me`) is stored as `*** text ***`;
 - Customizable triggers: the bot answers when addressed
-  (`botnick, webui`), `%CHANNEL_FOR_URL%` is substituted automatically;
+  (`botnick, webui`), `%CHANNEL_FOR_URL%` and `%VERSION%` are substituted
+  automatically;
 - NickServ authorization, busy nickname fallback and automatic recovery;
 - Customizable pages: `main_page.txt` (with `%LOCAL_TIME%` and
   `%DAILY_REQUESTS%` placeholders) and a per-server page

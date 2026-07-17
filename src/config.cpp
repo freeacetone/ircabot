@@ -5,7 +5,6 @@
 
 #include "config.h"
 #include "util.h"
-#include "version.h"
 
 #include <QDebug>
 #include <QDir>
@@ -73,8 +72,8 @@ QString Config::exampleText()
     },
 
     "triggers": {
-        "_comment": "Bot answers when addressed: 'botnick, version'. %CHANNEL_FOR_URL% -> server_slug/channel",
-        "version": "IRCaBot )") + QString::fromUtf8(VERSION) + QStringLiteral(R"(",
+        "_comment": "Bot answers when addressed: 'botnick, version'. %CHANNEL_FOR_URL% -> server_slug/channel, %VERSION% -> running version",
+        "version": "IRCaBot %VERSION%",
         "webui": "http://example.com/%CHANNEL_FOR_URL%"
     },
 

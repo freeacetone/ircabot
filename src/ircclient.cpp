@@ -20,6 +20,7 @@ namespace {
 
 constexpr const char* BLINDED_MESSAGE_MARKER = "Blinded message"; // v1 format
 constexpr const char* TRIGGER_CHANNEL_FOR_URL = "%CHANNEL_FOR_URL%";
+constexpr const char* TRIGGER_VERSION = "%VERSION%";
 
 int nickRank(const QString& nick)
 {
@@ -496,6 +497,7 @@ void IrcClient::handleTrigger(const QString& channel, const QString& nick, const
             QString answer = it.value();
             answer.replace(QString::fromUtf8(TRIGGER_CHANNEL_FOR_URL),
                            m_config.slug + '/' + QString(channel).remove('#'));
+            answer.replace(QString::fromUtf8(TRIGGER_VERSION), QString::fromUtf8(VERSION));
             send("PRIVMSG " + channel + " :" + nick + ", " + answer);
             return;
         }
