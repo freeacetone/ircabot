@@ -1,0 +1,20 @@
+#!/bin/sh
+# IRCaBot post-removal: disable the unit on remove; on purge also drop the
+# generated config. User log data under /srv/ircabot is always preserved.
+set -e
+
+case "$1" in
+    remove|purge)
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl disable ircabot.service >/dev/null 2>&1 || true
+            systemctl daemon-reload >/dev/null 2>&1 || true
+        fi
+        ;;
+esac
+
+if [ "$1" = "purge" ]; then
+    rm -f /etc/ircabot/config.json
+    rmdir /etc/ircabot 2>/dev/null || true
+fi
+
+exit 0

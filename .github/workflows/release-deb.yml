@@ -1,0 +1,52 @@
+name: Release .deb (Debian 13)
+
+# Build the Debian package on every v* tag and attach it to a GitHub Release.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+    container:
+      image: debian:trixie
+    steps:
+      # git must exist before checkout so it clones with full history and tags
+      # (git describe needs the v* tag; a tarball checkout would not have it).
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential cmake g++ file dpkg-dev \
+            qt6-base-dev qt6-httpserver-dev qt6-websockets-dev \
+            git ca-certificates
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Trust the workspace (container runs as root)
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+
+      - name: Package
+        run: cd build && cpack -G DEB
+
+      - name: List artifacts
+        run: ls -l build/*.deb
+
+      - name: Publish to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/*.deb
+          fail_on_unmatched_files: true

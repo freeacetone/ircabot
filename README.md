@@ -57,6 +57,11 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
 ```
 
+The version reported by `--version`, the startup banner and the web footer is
+taken from the nearest `v*` git tag (`git describe --tags`), falling back to the
+CMake project version when built outside a tagged checkout. Override explicitly
+with `-DIRCABOT_VERSION=x.y.z`.
+
 ## Run
 
 ```bash
@@ -67,11 +72,41 @@ cmake --build build -j$(nproc)
 ./build/ircabot --config ./config.json
 ```
 
-## Install as a service
+## Install
 
-- Edit `systemd/ircabot.service` (paths, user);
-- `sudo cp systemd/ircabot.service /etc/systemd/system/`;
-- `sudo systemctl enable --now ircabot.service`.
+### From a .deb (Debian 13)
+
+Download the package from the [Releases](https://github.com/freeacetone/ircabot/releases)
+page (or build it locally with `cd build && cpack -G DEB`) and install:
+
+```bash
+sudo apt install ./ircabot_<version>_amd64.deb
+```
+
+The package:
+
+- installs the binary to `/usr/bin/ircabot` and a systemd unit to
+  `/usr/lib/systemd/system/ircabot.service`;
+- creates the `ircabot` system user and the data directory `/srv/ircabot/data`;
+- writes a starter config to `/etc/ircabot/config.json` **only if it does not
+  already exist** - your configuration is never overwritten on upgrades;
+- starts the service on first install and restarts it on upgrade.
+
+Edit `/etc/ircabot/config.json`, then `sudo systemctl restart ircabot`.
+
+### Manual (from source)
+
+```bash
+sudo cmake --install build --prefix /usr
+ircabot --example /etc/ircabot/config.json   # then edit it
+sudo systemctl daemon-reload
+sudo systemctl enable --now ircabot.service
+```
+
+## Releases
+
+Pushing a `v*` tag runs a GitHub Action that builds the `.deb` under Debian 13
+and attaches it to the matching GitHub Release.
 
 ## License
 

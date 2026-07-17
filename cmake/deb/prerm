@@ -1,0 +1,14 @@
+#!/bin/sh
+# IRCaBot pre-removal: stop the service when the package is being removed.
+# On upgrade the running service is left up and postinst restarts it.
+set -e
+
+case "$1" in
+    remove|deconfigure)
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl stop ircabot.service >/dev/null 2>&1 || true
+        fi
+        ;;
+esac
+
+exit 0

@@ -1,0 +1,60 @@
+#!/bin/sh
+# IRCaBot post-installation: create the service user, seed a default config
+# without ever clobbering an existing one, then start (install) or restart
+# (upgrade) the service.
+set -e
+
+CONF_DIR=/etc/ircabot
+CONF="$CONF_DIR/config.json"
+EXAMPLE=/usr/share/ircabot/config.example.json
+DATA_DIR=/srv/ircabot/data
+
+case "$1" in
+    configure)
+        # System user/group for the daemon.
+        if ! getent group ircabot >/dev/null; then
+            addgroup --system ircabot
+        fi
+        if ! getent passwd ircabot >/dev/null; then
+            adduser --system --home /srv/ircabot --no-create-home \
+                    --ingroup ircabot --disabled-password \
+                    --gecos "IRCaBot" ircabot
+        fi
+
+        mkdir -p "$CONF_DIR" "$DATA_DIR"
+        chown ircabot:ircabot /srv/ircabot "$DATA_DIR"
+        chmod 750 /srv/ircabot
+
+        # Seed a default config only when the admin has none yet. An existing
+        # config is left exactly as it is on upgrades and reinstalls.
+        if [ ! -e "$CONF" ]; then
+            if [ -x /usr/bin/ircabot ] && /usr/bin/ircabot --example "$CONF" >/dev/null 2>&1 \
+               && [ -s "$CONF" ]; then
+                :
+            elif [ -f "$EXAMPLE" ]; then
+                cp "$EXAMPLE" "$CONF"
+            fi
+            if [ -e "$CONF" ]; then
+                chown root:ircabot "$CONF"
+                chmod 640 "$CONF"
+                echo "IRCaBot: default config written to $CONF - edit it before use."
+            fi
+        fi
+        ;;
+esac
+
+# --- systemd -----------------------------------------------------------------
+if [ "$1" = "configure" ] && command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    if [ -z "$2" ]; then
+        # Fresh install: enable at boot and start now.
+        systemctl enable ircabot.service >/dev/null 2>&1 || true
+        systemctl start ircabot.service >/dev/null 2>&1 || true
+    else
+        # Upgrade: restart to pick up the new binary (only if it was running,
+        # so a deliberately stopped service stays stopped).
+        systemctl try-restart ircabot.service >/dev/null 2>&1 || true
+    fi
+fi
+
+exit 0
