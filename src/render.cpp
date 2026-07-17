@@ -7,7 +7,7 @@
 #include "util.h"
 #include "version.h"
 
-#include <QDateTime>
+#include <QDate>
 #include <QUrl>
 
 namespace ircabot::render {
@@ -233,8 +233,7 @@ QString mainPage(const Site& site, const QString& mainPageText)
                    .arg(esc(site.serviceName));
 
     QString welcome = mainPageText;
-    welcome.replace(QStringLiteral("%LOCAL_TIME%"),
-                    QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd hh:mm:ss")));
+    welcome.replace(QStringLiteral("%LOCAL_TIME%"), util::currentLogTimeString());
     // Same format as v1: "N (html) / M (ajax)" while real time mode is enabled
     QString requestsCounter = QString::number(site.state->requestsServedToday());
     if (!site.realtimeDisabled) {
@@ -272,7 +271,7 @@ QString calendarPage(const Site& site, const ServerSnapshot& server, const QStri
 {
     QString content = channelHeader(site, server, channel, QStringLiteral("archive"));
 
-    const QDate today = QDate::currentDate();
+    const QDate today = util::currentLogDate();
     QString quickNav = QStringLiteral("<div class=\"daynav\">\n");
     if (store.dayExists(channel, today)) {
         quickNav += QStringLiteral("<a class=\"daynav-link\" href=\"/%1/%2/%3\">today</a>\n")
@@ -385,7 +384,7 @@ QString dayPage(const Site& site, const ServerSnapshot& server, const QString& c
     const QString base = '/' + server.slug + '/' + channel;
     const QDate prev = store.adjacentDay(channel, date, false);
     const QDate next = store.adjacentDay(channel, date, true);
-    const QDate today = QDate::currentDate();
+    const QDate today = util::currentLogDate();
 
     QString nav = QStringLiteral("<div class=\"daynav\">\n");
     nav += prev.isValid()

@@ -5,9 +5,24 @@
 
 #pragma once
 
+#include <QDate>
 #include <QString>
 
 namespace ircabot::util {
+
+// Day-rotation timezone. Set once at startup from config (default: UTC).
+// Every "current day / current time" decision routes through the helpers
+// below, so log rotation, the "today" links and the daily request counter
+// all agree on where a day starts.
+void setLogLocalTime(bool enabled);
+bool logLocalTime();
+
+// "Today" in the configured logging timezone (UTC unless local time is on).
+QDate currentLogDate();
+
+// Current wall clock in the logging timezone, e.g. "2026-07-18 02:03:04 UTC"
+// (the " UTC" suffix is dropped when local time is configured).
+QString currentLogTimeString();
 
 // "Ilita IRC" -> "ilita_irc" (folder name and URL path segment, v1-compatible)
 QString slugify(const QString& name);

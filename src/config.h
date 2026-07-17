@@ -38,6 +38,7 @@ public:
     explicit Config(const QString& path);
 
     const QString& dataPath() const        { return m_dataPath; }
+    bool logLocalTime() const              { return m_logLocalTime; }
     const QString& bindAddress() const     { return m_bindAddress; }
     quint16 bindPort() const               { return m_bindPort; }
     const QString& serviceName() const     { return m_serviceName; }
@@ -49,6 +50,7 @@ private:
     void parse(const QByteArray& raw);
 
     QString m_dataPath;
+    bool m_logLocalTime = false; // false: rotate days in UTC; true: server local time
     QString m_bindAddress;
     quint16 m_bindPort = 0;
     QString m_serviceName;

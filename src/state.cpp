@@ -5,6 +5,8 @@
 
 #include "state.h"
 
+#include "util.h"
+
 namespace ircabot {
 
 void RuntimeState::registerServer(const QString& displayName, const QString& slug, const QStringList& channels)
@@ -126,19 +128,19 @@ QList<LiveMessage> RuntimeState::liveMessagesAfter(const QString& slug, const QS
 quint64 RuntimeState::requestsServedToday() const
 {
     const QReadLocker locker(&m_counterLock);
-    return m_requestCounterDate == QDate::currentDate() ? m_requestCounter : 0;
+    return m_requestCounterDate == util::currentLogDate() ? m_requestCounter : 0;
 }
 
 quint64 RuntimeState::ajaxRequestsServedToday() const
 {
     const QReadLocker locker(&m_counterLock);
-    return m_requestCounterDate == QDate::currentDate() ? m_ajaxRequestCounter : 0;
+    return m_requestCounterDate == util::currentLogDate() ? m_ajaxRequestCounter : 0;
 }
 
 void RuntimeState::countRequest() const
 {
     const QWriteLocker locker(&m_counterLock);
-    const QDate today = QDate::currentDate();
+    const QDate today = util::currentLogDate();
     if (m_requestCounterDate != today) {
         m_requestCounterDate = today;
         m_requestCounter = 0;
@@ -150,7 +152,7 @@ void RuntimeState::countRequest() const
 void RuntimeState::countAjaxRequest() const
 {
     const QWriteLocker locker(&m_counterLock);
-    const QDate today = QDate::currentDate();
+    const QDate today = util::currentLogDate();
     if (m_requestCounterDate != today) {
         m_requestCounterDate = today;
         m_requestCounter = 0;

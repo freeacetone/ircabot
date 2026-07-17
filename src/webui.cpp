@@ -25,7 +25,8 @@ namespace {
 
 constexpr const char* DEFAULT_MAIN_PAGE =
     "# Main page content. HTML is supported, for line breaks use <br>.\n"
-    "# Placeholders: %LOCAL_TIME% - server time, %DAILY_REQUESTS% - requests served today.\n\n"
+    "# Placeholders: %LOCAL_TIME% - current time in the logging timezone (UTC by default),\n"
+    "# %DAILY_REQUESTS% - requests served today.\n\n"
     "<h2>Welcome to IRC chat logger</h2>\n"
     "Pick a channel on the left to read the logs.<br><br>\n"
     "Server time: %LOCAL_TIME%<br>\n"

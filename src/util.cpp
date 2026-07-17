@@ -6,9 +6,40 @@
 #include "util.h"
 
 #include <QCryptographicHash>
+#include <QDateTime>
 #include <QRegularExpression>
 
 namespace ircabot::util {
+
+namespace {
+// Set once at startup before any IRC/web thread reads it, then read-only.
+bool g_logLocalTime = false; // default: UTC
+} // namespace
+
+void setLogLocalTime(bool enabled)
+{
+    g_logLocalTime = enabled;
+}
+
+bool logLocalTime()
+{
+    return g_logLocalTime;
+}
+
+QDate currentLogDate()
+{
+    return g_logLocalTime ? QDate::currentDate()
+                          : QDateTime::currentDateTimeUtc().date();
+}
+
+QString currentLogTimeString()
+{
+    static const QString format = QStringLiteral("yyyy-MM-dd hh:mm:ss");
+    if (g_logLocalTime) {
+        return QDateTime::currentDateTime().toString(format);
+    }
+    return QDateTime::currentDateTimeUtc().toString(format) + QStringLiteral(" UTC");
+}
 
 QString slugify(const QString& name)
 {

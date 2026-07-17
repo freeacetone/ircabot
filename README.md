@@ -9,7 +9,9 @@ Complete rewrite of IRCaBot on Qt6: only the logger and the web UI, nothing else
   `data/<server>/<channel>/yyyy/MM/dd.txt` with `[nick] message` lines.
   An existing production data folder is picked up as is, no conversion needed.
 - **Configuration is plain JSON** (`./ircabot --example config.json` writes
-  a documented template). Top-level keys: `data_path`, `web{}` (address, port,
+  a documented template). Top-level keys: `data_path`, `log_local_time`
+  (day rotation timezone: `false`/default = UTC, `true` = server local time),
+  `web{}` (address, port,
   service name/emoji, `realtime_disabled`), `defaults{}` (nick/user/real_name/
   password for all servers), `triggers{}` (request -> answer) and `servers[]`
   (name, address, port, optional `ssl`, channels, per-server overrides).

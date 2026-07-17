@@ -5,6 +5,8 @@
 
 #include "logstore.h"
 
+#include "util.h"
+
 #include <QDebug>
 #include <QDir>
 #include <QElapsedTimer>
@@ -82,7 +84,7 @@ void LogStore::append(const QString& channel, const QString& nick, const QString
         return;
     }
 
-    const QDate today = QDate::currentDate();
+    const QDate today = util::currentLogDate();
     const QString path = dayPath(channel, today);
     QDir().mkpath(path.left(path.lastIndexOf('/')));
 

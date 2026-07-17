@@ -52,6 +52,9 @@ QString Config::exampleText()
     return QStringLiteral(R"({
     "data_path": "/srv/ircabot/data",
 
+    "_comment_log_local_time": "Day rotation timezone: false (default) = UTC, true = server local time",
+    "log_local_time": false,
+
     "web": {
         "_comment": "JS is used only on /~realtime/ pages; realtime_disabled removes it entirely",
         "address": "127.0.0.1",
@@ -122,6 +125,9 @@ void Config::parse(const QByteArray& raw)
     if (!QDir().mkpath(m_dataPath)) {
         throw std::runtime_error("Can't create data_path: " + m_dataPath.toStdString());
     }
+
+    // Day rotation defaults to UTC; opt into the server's local time explicitly.
+    m_logLocalTime = root.value(QStringLiteral("log_local_time")).toBool(false);
 
     const QJsonObject web = root.value(QStringLiteral("web")).toObject();
     m_bindAddress = web.value(QStringLiteral("address")).toString();

@@ -1,6 +1,9 @@
 {
     "data_path": "/srv/ircabot/data",
 
+    "_comment_log_local_time": "Day rotation timezone: false (default) = UTC, true = server local time",
+    "log_local_time": false,
+
     "web": {
         "_comment": "JS is used only on /~realtime/ pages; realtime_disabled removes it entirely",
         "address": "127.0.0.1",

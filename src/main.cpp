@@ -7,6 +7,7 @@
 #include "ircclient.h"
 #include "logstore.h"
 #include "state.h"
+#include "util.h"
 #include "version.h"
 #include "webui.h"
 
@@ -104,6 +105,9 @@ int main(int argc, char* argv[])
 
     try {
         const Config config(configFile);
+        util::setLogLocalTime(config.logLocalTime());
+        qInfo().noquote() << "Log day rotation timezone:"
+                          << (config.logLocalTime() ? "server local time" : "UTC");
         RuntimeState state;
 
         QHash<QString, std::shared_ptr<LogStore>> stores;
