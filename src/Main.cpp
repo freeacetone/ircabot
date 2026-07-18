@@ -5,6 +5,7 @@
 
 #include "Config.h"
 #include "IrcClient.h"
+#include "LogCache.h"
 #include "LogStore.h"
 #include "State.h"
 #include "Util.h"
@@ -120,10 +121,19 @@ int main(int argc, char* argv[])
         VoiceGate voiceGate(config.dataPath(), config.voiceGate(), captchaBase);
         qInfo().noquote() << "Voice gate:" << (config.voiceGate().enabled ? "enabled" : "disabled");
 
+        // One archive cache shared by every server, so its budget is global.
+        // Declared before the stores so it outlives them at shutdown.
+        LogCache logCache(config.logCacheBytes());
+        qInfo().noquote() << "Log cache:"
+                          << (config.logCacheBytes() > 0
+                                  ? QString::number(config.logCacheBytes() / (1024 * 1024)) + " MB"
+                                  : QStringLiteral("disabled"));
+
         QHash<QString, std::shared_ptr<LogStore>> stores;
         QList<IrcClient*> clients;
         for (const ServerConfig& serverConfig : config.servers()) {
-            auto store = std::make_shared<LogStore>(config.dataPath(), serverConfig.slug, serverConfig.channels);
+            auto store = std::make_shared<LogStore>(config.dataPath(), serverConfig.slug,
+                                                    serverConfig.channels, &logCache);
             stores.insert(serverConfig.slug, store);
             clients.push_back(new IrcClient(serverConfig, &state, store.get(), &voiceGate, &app));
         }

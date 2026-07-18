@@ -5,6 +5,7 @@
 
 #include "LogStore.h"
 
+#include "LogCache.h"
 #include "Util.h"
 
 #include <QDebug>
@@ -42,9 +43,11 @@ QStringList sortedNumericEntries(const QString& path, int width)
 
 } // namespace
 
-LogStore::LogStore(const QString& dataPath, const QString& serverSlug, const QStringList& channels)
+LogStore::LogStore(const QString& dataPath, const QString& serverSlug, const QStringList& channels,
+                   LogCache* cache)
     : m_serverDir(dataPath + serverSlug + '/'),
-      m_serverSlug(serverSlug)
+      m_serverSlug(serverSlug),
+      m_cache(cache)
 {
     for (const QString& ch : channels) {
         QDir().mkpath(channelDir(ch));
@@ -197,16 +200,30 @@ LogLine LogStore::parseLine(const QString& raw)
     return result;
 }
 
+QByteArray LogStore::dayBytes(const QString& channel, const QDate& date, bool store) const
+{
+    const QString path = dayPath(channel, date);
+    const auto readFromDisk = [&path] {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly)) {
+            return QByteArray();
+        }
+        return file.readAll();
+    };
+    // No cache, or today's still-growing file: always read straight from disk.
+    if (!m_cache || date >= util::currentLogDate()) {
+        return readFromDisk();
+    }
+    return m_cache->get(path, store, readFromDisk);
+}
+
 QList<LogLine> LogStore::readDay(const QString& channel, const QDate& date) const
 {
     QList<LogLine> result;
-    QFile file(dayPath(channel, date));
-    if (!file.open(QIODevice::ReadOnly)) {
-        return result;
-    }
-    while (!file.atEnd()) {
-        QString line = QString::fromUtf8(file.readLine());
-        while (line.endsWith('\n') || line.endsWith('\r')) {
+    const QList<QByteArray> lines = dayBytes(channel, date, true).split('\n');
+    for (const QByteArray& raw : lines) {
+        QString line = QString::fromUtf8(raw);
+        while (line.endsWith('\r')) {
             line.chop(1);
         }
         if (line.isEmpty()) {
@@ -219,11 +236,7 @@ QList<LogLine> LogStore::readDay(const QString& channel, const QDate& date) cons
 
 QByteArray LogStore::readDayRaw(const QString& channel, const QDate& date) const
 {
-    QFile file(dayPath(channel, date));
-    if (!file.open(QIODevice::ReadOnly)) {
-        return {};
-    }
-    return file.readAll();
+    return dayBytes(channel, date, true);
 }
 
 QString LogStore::aboutServerHtml() const
@@ -281,15 +294,14 @@ SearchResult LogStore::search(const QString& channel, const QString& query, bool
                 }
                 ++result.scannedDays;
 
-                QFile file(dayPath(channel, date));
-                if (!file.open(QIODevice::ReadOnly)) {
-                    continue;
-                }
+                // Scan reads through the cache but does not populate it, so a
+                // deep search cannot evict the archive days people are reading.
+                const QList<QByteArray> lines = dayBytes(channel, date, false).split('\n');
                 int lineNumber = 0;
-                while (!file.atEnd()) {
-                    QString line = QString::fromUtf8(file.readLine());
+                for (const QByteArray& raw : lines) {
+                    QString line = QString::fromUtf8(raw);
                     ++lineNumber;
-                    while (line.endsWith('\n') || line.endsWith('\r')) {
+                    while (line.endsWith('\r')) {
                         line.chop(1);
                     }
                     if (line.isEmpty()) {

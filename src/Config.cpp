@@ -60,6 +60,9 @@ QString Config::exampleText()
     "_comment_log_local_time": "Day rotation timezone: false (default) = UTC, true = server local time",
     "log_local_time": false,
 
+    "_comment_log_cache_mb": "Archive log files kept in RAM (LRU), in MB; 0 disables. Today's file is never cached",
+    "log_cache_mb": 100,
+
     "web": {
         "_comment": "JS is used only on /~realtime/ pages; realtime_disabled removes it entirely",
         "address": "127.0.0.1",
@@ -145,6 +148,11 @@ void Config::parse(const QByteArray& raw)
 
     // Day rotation defaults to UTC; opt into the server's local time explicitly.
     m_logLocalTime = root.value(QStringLiteral("log_local_time")).toBool(false);
+
+    // Archive log files are cached in RAM up to this budget (LRU eviction);
+    // 0 disables the cache. Today's still-growing file is never cached.
+    const int logCacheMb = root.value(QStringLiteral("log_cache_mb")).toInt(100);
+    m_logCacheBytes = static_cast<qint64>(qBound(0, logCacheMb, 1024 * 64)) * 1024 * 1024;
 
     const QJsonObject web = root.value(QStringLiteral("web")).toObject();
     m_bindAddress = web.value(QStringLiteral("address")).toString();

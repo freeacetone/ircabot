@@ -12,6 +12,8 @@
 
 namespace ircabot {
 
+class LogCache;
+
 struct LogLine
 {
     QString nick;
@@ -62,7 +64,9 @@ public:
     static constexpr int SEARCH_MAX_HITS = 300;
     static constexpr qint64 SEARCH_TIME_BUDGET_MS = 5000;
 
-    LogStore(const QString& dataPath, const QString& serverSlug, const QStringList& channels);
+    // `cache` (may be null) is a shared, size-bounded store of archive-day bytes.
+    LogStore(const QString& dataPath, const QString& serverSlug, const QStringList& channels,
+             LogCache* cache = nullptr);
 
     const QString& serverSlug() const { return m_serverSlug; }
 
@@ -89,9 +93,14 @@ public:
 private:
     QString channelDir(const QString& channel) const;
     QString dayPath(const QString& channel, const QDate& date) const;
+    // Raw bytes of a day file. Past days are immutable and go through the cache;
+    // today's file is still being appended to and is always read fresh from disk.
+    // `store` == false reads through the cache without inserting (search scans).
+    QByteArray dayBytes(const QString& channel, const QDate& date, bool store) const;
 
     QString m_serverDir; // <data>/<slug>/
     QString m_serverSlug;
+    LogCache* m_cache;   // shared archive cache, not owned (may be null)
 };
 
 } // namespace ircabot

@@ -43,6 +43,8 @@ add_executable(ircabot
     src/Config.h
     src/IrcClient.cpp
     src/IrcClient.h
+    src/LogCache.cpp
+    src/LogCache.h
     src/LogStore.cpp
     src/LogStore.h
     src/Render.cpp

@@ -13,7 +13,8 @@ desperately.
 - **Configuration is plain JSON** (`./ircabot --example config.json` writes
   a documented template). Top-level keys: `data_path`, `log_local_time`
   (day rotation timezone: `false`/default = UTC, `true` = server local time),
-  `web{}` (address, port,
+  `log_cache_mb` (RAM budget for the archive log cache, default 100, `0`
+  disables), `web{}` (address, port,
   service name/emoji, `realtime_disabled`), `voicegate{}` (`enabled`,
   `set_moderated`, `captcha_url`, `captcha_length`, `connect_delay_seconds`,
   `offline_ttl_hours`, `pm_interval_hours`, `private_message`),
@@ -30,7 +31,10 @@ desperately.
 - **Multithreaded asynchronous web server**: QHttpServer, heavy handlers run on
   the global thread pool (`QFuture<QHttpServerResponse>`), the IRC event loop is
   never blocked. Search is bounded by a time budget and a hit limit, so a greedy
-  regexp cannot hang the service (the main v1 disease).
+  regexp cannot hang the service (the main v1 disease). Archive day logs (every
+  day except today's, which keeps growing) are served from a shared,
+  size-bounded LRU cache in RAM, so active reading and repeated searches barely
+  touch the disk.
 - **No worker threads for IRC**, no blocking `waitFor*()` calls: every connection
   is event-driven, reconnects are timer-based.
 - No X server or offscreen platform hacks: pure QCoreApplication console binary.
