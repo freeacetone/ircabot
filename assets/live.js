@@ -73,7 +73,7 @@
 
     function poll() {
         var request = new XMLHttpRequest();
-        request.open("GET", "/ajax/" + server + "/" + channel + "?after=" + lastId, true);
+        request.open("GET", "/~api/" + server + "/" + channel + "?after=" + lastId, true);
         request.timeout = POLL_MS * 2;
         request.onload = function () {
             var data;

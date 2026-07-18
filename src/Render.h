@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include "logstore.h"
-#include "state.h"
+#include "LogStore.h"
+#include "State.h"
 
 #include <QString>
 
@@ -46,5 +46,13 @@ QString searchPage(const Site& site, const ServerSnapshot& server, const QString
                    const QString& query, bool regexp, const SearchResult& result);
 QString livePage(const Site& site, const ServerSnapshot& server, const QString& channel);
 QString errorPage(const Site& site, const QString& title, const QString& text);
+
+// Voice-gate captcha, drawn as a modal over the terminal. With a non-empty
+// answer it shows the image and the form; with an empty answer it shows only
+// the message (the "solved" / "already verified" screens, success == green).
+// server/nick/hostHash form the POST target; serverName is shown to the user.
+QString captchaPage(const Site& site, const QString& server, const QString& serverName,
+                    const QString& nick, const QString& hostHash, const QString& answer,
+                    const QString& nonce, const QString& message, bool success);
 
 } // namespace ircabot::render

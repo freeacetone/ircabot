@@ -3,10 +3,11 @@
  * Copyright (C) acetone, 2021-2026. GPLv3.
  */
 
-#include "ircclient.h"
-#include "util.h"
+#include "IrcClient.h"
+#include "Util.h"
+#include "VoiceGate.h"
 
-#include "version.h"
+#include "Version.h"
 
 #include <QDateTime>
 #include <QDebug>
@@ -18,7 +19,7 @@ namespace ircabot {
 
 namespace {
 
-constexpr const char* BLINDED_MESSAGE_MARKER = "Blinded message"; // v1 format
+constexpr const char* BLINDED_MESSAGE_MARKER = "Blinded message";
 constexpr const char* TRIGGER_CHANNEL_FOR_URL = "%CHANNEL_FOR_URL%";
 constexpr const char* TRIGGER_VERSION = "%VERSION%";
 
@@ -53,8 +54,9 @@ QStringList sortedByRank(QStringList nicks)
 
 } // namespace
 
-IrcClient::IrcClient(const ServerConfig& config, RuntimeState* state, LogStore* store, QObject* parent)
-    : QObject(parent), m_config(config), m_state(state), m_store(store)
+IrcClient::IrcClient(const ServerConfig& config, RuntimeState* state, LogStore* store,
+                     VoiceGate* voiceGate, QObject* parent)
+    : QObject(parent), m_config(config), m_state(state), m_store(store), m_voiceGate(voiceGate)
 {
     m_reconnectTimer.setSingleShot(true);
     connect(&m_reconnectTimer, &QTimer::timeout, this, &IrcClient::start);
@@ -62,6 +64,7 @@ IrcClient::IrcClient(const ServerConfig& config, RuntimeState* state, LogStore* 
     connect(&m_namesTimer, &QTimer::timeout, this, &IrcClient::onNamesRefresh);
     connect(&m_nickRecoverTimer, &QTimer::timeout, this, &IrcClient::onNickRecover);
     connect(&m_joinTimer, &QTimer::timeout, this, &IrcClient::onEnsureJoined);
+    connect(&m_voiceGateTimer, &QTimer::timeout, this, &IrcClient::onVoiceGateTick);
 
     m_state->registerServer(m_config.displayName, m_config.slug, m_config.channels);
     m_state->setBotNick(m_config.slug, m_config.nick);
@@ -69,8 +72,12 @@ IrcClient::IrcClient(const ServerConfig& config, RuntimeState* state, LogStore* 
 
 IrcClient::~IrcClient()
 {
-    // Graceful shutdown as in v1: the server should not keep a ghost session
+    // Graceful shutdown so the server does not keep a ghost session.
     if (m_socket && m_socket->state() == QAbstractSocket::ConnectedState) {
+        // Detach our slots first: disconnectFromHost() emits disconnected()
+        // synchronously, and onDisconnected() would touch collaborators
+        // (RuntimeState, ...) that may already be gone during teardown.
+        m_socket->disconnect(this);
         m_socket->write(QByteArray("QUIT :IRCaBot ") + VERSION + ": shutting down\r\n");
         m_socket->flush();
         m_socket->disconnectFromHost();
@@ -96,6 +103,12 @@ void IrcClient::start()
     m_online.clear();
     m_namesAccum.clear();
     m_joined.clear();
+    m_userHost.clear();
+    m_moderated.clear();
+    m_gated.clear();
+    m_setModerated.clear();
+    m_pendingSince.clear();
+    m_lastWho.clear();
 
     connect(m_socket, &QSslSocket::connected, this, &IrcClient::onConnected);
     connect(m_socket, &QSslSocket::disconnected, this, &IrcClient::onDisconnected);
@@ -137,6 +150,7 @@ void IrcClient::onDisconnected()
     m_namesTimer.stop();
     m_nickRecoverTimer.stop();
     m_joinTimer.stop();
+    m_voiceGateTimer.stop();
     m_registered = false;
     m_state->setConnected(m_config.slug, false);
 
@@ -229,6 +243,10 @@ IrcClient::IrcMessage IrcClient::parseLine(const QString& line)
         const QString prefix = rest.mid(1, space - 1);
         const qsizetype bang = prefix.indexOf('!');
         msg.prefixNick = bang == -1 ? prefix : prefix.left(bang);
+        const qsizetype at = prefix.indexOf('@');
+        if (at != -1) {
+            msg.prefixHost = prefix.mid(at + 1);
+        }
         rest = rest.mid(space + 1);
     }
 
@@ -264,6 +282,9 @@ void IrcClient::onRegistered()
     onEnsureJoined();
     m_joinTimer.start(JOIN_RETRY_MS);
     m_namesTimer.start(NAMES_REFRESH_MS);
+    if (voiceGateActive()) {
+        m_voiceGateTimer.start(VOICEGATE_TICK_MS);
+    }
 }
 
 void IrcClient::onEnsureJoined()
@@ -339,6 +360,24 @@ void IrcClient::processLine(const QString& line)
         return;
     }
 
+    if (msg.command == QStringLiteral("324")) { // RPL_CHANNELMODEIS: <me> <channel> <modes> ...
+        if (msg.params.size() >= 3) {
+            const QString channel = msg.params[1].toLower();
+            if (msg.params[2].contains('m')) {
+                m_moderated.insert(channel);
+            } else {
+                m_moderated.remove(channel);
+            }
+        }
+        return;
+    }
+    if (msg.command == QStringLiteral("352")) { // RPL_WHOREPLY: <me> <chan> <user> <host> <srv> <nick> <flags>
+        if (msg.params.size() >= 6 && !msg.params[3].isEmpty()) {
+            m_userHost.insert(msg.params[5].toLower(), msg.params[3]);
+        }
+        return;
+    }
+
     if (msg.command == QStringLiteral("PRIVMSG")) {
         handlePrivmsg(msg);
         return;
@@ -349,10 +388,17 @@ void IrcClient::processLine(const QString& line)
         if (msg.prefixNick == currentNick()) {
             consoleLog("I joined to " + channel);
             m_joined.insert(channel.toLower());
+            if (voiceGateActive()) {
+                send("MODE " + channel, false); // -> 324, learn +m
+                send("WHO " + channel, false);  // -> 352, learn hosts
+            }
             return;
         }
         if (!m_online[channel].contains(msg.prefixNick)) {
             m_online[channel].push_back(msg.prefixNick);
+        }
+        if (!msg.prefixHost.isEmpty()) {
+            m_userHost.insert(msg.prefixNick.toLower(), msg.prefixHost);
         }
         publishOnline(channel);
         return;
@@ -362,6 +408,9 @@ void IrcClient::processLine(const QString& line)
         if (msg.prefixNick == currentNick()) {
             consoleLog("I left " + channel);
             m_joined.remove(channel.toLower());
+            m_moderated.remove(channel.toLower());
+            m_gated.remove(channel.toLower());
+            m_setModerated.remove(channel.toLower());
             return;
         }
         auto& list = m_online[channel];
@@ -370,6 +419,9 @@ void IrcClient::processLine(const QString& line)
             list.removeAll(p + msg.prefixNick);
         }
         publishOnline(channel);
+        if (!isUserPresent(msg.prefixNick)) {
+            userWentOffline(msg.prefixNick);
+        }
         return;
     }
     if (msg.command == QStringLiteral("KICK")) { // KICK <channel> <victim> :reason
@@ -379,6 +431,9 @@ void IrcClient::processLine(const QString& line)
             if (victim == currentNick()) {
                 consoleLog("I was kicked from " + channel + " (" + msg.trailing + "), rejoining...");
                 m_joined.remove(channel.toLower());
+                m_moderated.remove(channel.toLower());
+                m_gated.remove(channel.toLower());
+                m_setModerated.remove(channel.toLower());
                 return;
             }
             auto& list = m_online[channel];
@@ -387,10 +442,14 @@ void IrcClient::processLine(const QString& line)
                 list.removeAll(p + victim);
             }
             publishOnline(channel);
+            if (!isUserPresent(victim)) {
+                userWentOffline(victim);
+            }
         }
         return;
     }
     if (msg.command == QStringLiteral("QUIT")) {
+        userWentOffline(msg.prefixNick);
         removeUserEverywhere(msg.prefixNick);
         return;
     }
@@ -402,7 +461,7 @@ void IrcClient::processLine(const QString& line)
             return;
         }
 
-        if (msg.prefixNick == currentNick()) { // it is me
+        if (msg.prefixNick == currentNick()) {
             if (newNick == m_config.nick) {
                 consoleLog("Default nickname (" + m_config.nick + ") is recovered!");
                 m_altNick.clear();
@@ -425,13 +484,26 @@ void IrcClient::processLine(const QString& line)
                     publishOnline(it.key());
                 }
             }
+            // The host follows the connection; the grant is nick+host bound, so
+            // under the new nick the user is a fresh, ungated identity.
+            const QString oldKey = msg.prefixNick.toLower();
+            const QString newKey = newNick.toLower();
+            if (oldKey != newKey) {
+                if (m_userHost.contains(oldKey)) {
+                    m_userHost.insert(newKey, m_userHost.take(oldKey));
+                }
+                m_pendingSince.remove(oldKey);
+            }
         }
         return;
     }
     if (msg.command == QStringLiteral("MODE")) {
-        // Channel mode change can grant/remove prefixes: refresh NAMES
+        // Channel mode change can grant/remove prefixes or toggle +m: refresh both
         if (!msg.params.isEmpty() && msg.params.first().startsWith('#')) {
             send("NAMES " + msg.params.first(), false);
+            if (voiceGateActive()) {
+                send("MODE " + msg.params.first(), false);
+            }
         }
         return;
     }
@@ -533,6 +605,173 @@ void IrcClient::removeUserEverywhere(const QString& nick)
 void IrcClient::consoleLog(const QString& message) const
 {
     qInfo().noquote() << "[" + m_config.displayName + "]" << message;
+}
+
+// --- Voice gate -------------------------------------------------------------
+
+bool IrcClient::voiceGateActive() const
+{
+    return m_voiceGate && m_voiceGate->enabled();
+}
+
+bool IrcClient::botCanVoiceIn(const QString& channel) const
+{
+    const QString me = currentNick();
+    for (const QString& entry : m_online.value(channel)) {
+        if (util::stripNickPrefix(entry).compare(me, Qt::CaseInsensitive) == 0) {
+            // Owner (~), admin (&), operator (@) and half-op (%) can set +v.
+            return !entry.isEmpty() && QStringLiteral("~&@%").contains(entry.front());
+        }
+    }
+    return false;
+}
+
+bool IrcClient::isUserPresent(const QString& nick) const
+{
+    for (auto it = m_online.constBegin(); it != m_online.constEnd(); ++it) {
+        for (const QString& entry : it.value()) {
+            if (util::stripNickPrefix(entry).compare(nick, Qt::CaseInsensitive) == 0) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void IrcClient::sendAction(const QString& target, const QString& text)
+{
+    send("PRIVMSG " + target + " :\x01" "ACTION " + text + "\x01");
+}
+
+void IrcClient::grantVoice(const QString& channel, const QString& nick)
+{
+    send("MODE " + channel + " +v " + nick);
+    // Reflect it locally at once so we do not re-issue +v before NAMES catches
+    // up; a failed +v (lost op) is corrected by the next NAMES refresh.
+    QStringList& list = m_online[channel];
+    for (QString& entry : list) {
+        if (nickRank(entry) == 5 && util::stripNickPrefix(entry).compare(nick, Qt::CaseInsensitive) == 0) {
+            entry = '+' + entry;
+        }
+    }
+    publishOnline(channel);
+    consoleLog("Voice gate: voiced " + nick + " on " + channel);
+}
+
+void IrcClient::sendCaptchaPm(const QString& nick, const QString& host)
+{
+    const QString url = m_voiceGate->captchaUrl(m_config.slug, nick, host);
+    const QString text = m_voiceGate->config().privateMessage;
+    // The link always goes at the end; a space separates it only when there is
+    // preceding text, so an empty message sends just the bare link.
+    const QString body = text.isEmpty() ? url : text + ' ' + url;
+    send("PRIVMSG " + nick + " :" + body);
+    consoleLog("Voice gate: sent captcha link to " + nick);
+}
+
+void IrcClient::userWentOffline(const QString& nick)
+{
+    const QString key = nick.toLower();
+    if (voiceGateActive()) {
+        const QString host = m_userHost.value(key);
+        if (!host.isEmpty()) {
+            m_voiceGate->markOffline(m_config.slug, nick, host);
+        }
+    }
+    m_userHost.remove(key);
+    m_pendingSince.remove(key);
+}
+
+void IrcClient::onVoiceGateTick()
+{
+    if (!voiceGateActive() || !m_registered) {
+        return;
+    }
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+
+    if (m_lastSweep == 0 || now - m_lastSweep > SWEEP_INTERVAL_MS) {
+        m_voiceGate->sweep(m_config.slug);
+        m_lastSweep = now;
+    }
+
+    const qint64 delayMs = static_cast<qint64>(m_voiceGate->config().connectDelaySeconds) * 1000;
+    const QString me = currentNick();
+
+    for (const QString& ch : m_config.channels) {
+        if (!m_joined.contains(ch.toLower())) {
+            continue;
+        }
+        const QString lc = ch.toLower();
+        const bool botOp = botCanVoiceIn(ch);
+        // With ops in hand, enforce +m once so the gate can engage (opt-out via
+        // voicegate.set_moderated). A later manual -m is respected, not re-forced.
+        if (botOp && m_voiceGate->config().setModerated
+            && !m_moderated.contains(lc) && !m_setModerated.contains(lc)) {
+            m_setModerated.insert(lc);
+            send("MODE " + ch + " +m");
+        }
+        const bool gated = botOp && m_moderated.contains(lc);
+        const bool wasGated = m_gated.contains(lc);
+        if (gated && !wasGated) {
+            m_gated.insert(ch.toLower());
+            sendAction(ch, QStringLiteral("Voice gate mode activated"));
+            consoleLog("Voice gate activated on " + ch);
+        } else if (!gated && wasGated) {
+            m_gated.remove(ch.toLower());
+            sendAction(ch, QStringLiteral("Voice gate mode deactivated"));
+            consoleLog("Voice gate deactivated on " + ch);
+        }
+        if (!gated) {
+            continue;
+        }
+
+        bool whoNeeded = false;
+        for (const QString& entry : m_online.value(ch)) {
+            const QString nick = util::stripNickPrefix(entry);
+            if (nick.compare(me, Qt::CaseInsensitive) == 0) {
+                continue;
+            }
+            const QString key = nick.toLower();
+            const QString host = m_userHost.value(key);
+            if (host.isEmpty()) {
+                whoNeeded = true;
+                continue; // cannot bind anything without the host
+            }
+            const bool voiced = nickRank(entry) <= 4; // +v or higher: may speak in +m
+
+            // A captcha solved on the web becomes a host-bound grant here. The
+            // solve is keyed by this exact host hash, so a same-nick user on a
+            // different host cannot inherit it.
+            if (m_voiceGate->consumeSolved(m_config.slug, nick, VoiceGate::hostHash(host))) {
+                m_voiceGate->grant(m_config.slug, nick, host);
+            }
+
+            if (m_voiceGate->isGranted(m_config.slug, nick, host)) {
+                m_voiceGate->markOnline(m_config.slug, nick, host); // freeze TTL while online
+                m_pendingSince.remove(key);
+                if (!voiced) {
+                    grantVoice(ch, nick);
+                }
+                continue;
+            }
+            if (voiced) {
+                continue; // voiced by an operator, nothing owed to the gate
+            }
+
+            // Unvoiced and ungranted: wait the delay, then PM (pmDue throttles).
+            const qint64 since = m_pendingSince.value(key, 0);
+            if (since == 0) {
+                m_pendingSince.insert(key, now);
+            } else if (now - since >= delayMs && m_voiceGate->pmDue(m_config.slug, nick, host)) {
+                sendCaptchaPm(nick, host);
+            }
+        }
+
+        if (whoNeeded && now - m_lastWho.value(ch.toLower(), 0) > WHO_THROTTLE_MS) {
+            m_lastWho.insert(ch.toLower(), now);
+            send("WHO " + ch, false);
+        }
+    }
 }
 
 } // namespace ircabot

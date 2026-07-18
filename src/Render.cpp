@@ -3,9 +3,10 @@
  * Copyright (C) acetone, 2021-2026. GPLv3.
  */
 
-#include "render.h"
-#include "util.h"
-#include "version.h"
+#include "Render.h"
+#include "CaptchaImage.h"
+#include "Util.h"
+#include "Version.h"
 
 #include <QDate>
 #include <QUrl>
@@ -53,7 +54,6 @@ QString sidebar(const Site& site, const PageRef& ref)
 
     const QList<ServerSnapshot> servers = site.state->snapshotAll();
     for (const ServerSnapshot& srv : servers) {
-        // The server page itself is selected (no channel picked)
         const bool serverActive = (srv.slug == ref.slug && ref.channel.isEmpty());
         html += QStringLiteral("<div class=\"side-server\">\n");
         html += QStringLiteral("<a class=\"side-server-name%1\" href=\"/%2\" title=\"%3\">"
@@ -130,9 +130,7 @@ QString channelHeader(const Site& site, const ServerSnapshot& server, const QStr
         html += QStringLiteral("<p class=\"chan-topic\">%1</p>\n").arg(util::escapeAndLinkify(chan.topic));
     }
 
-    // Search form (plain GET, parameter names are v1-compatible).
-    // Input on the left; on the right a column: grep button stretched
-    // to the width of the regexp checkbox under it
+    // Grep button on the right, stretched to the width of the regexp checkbox below it.
     html += QStringLiteral(
         "<form class=\"search\" method=\"get\" action=\"/%1/%2\">\n"
         "<input class=\"search-input\" type=\"search\" name=\"toSearch\" placeholder=\"search in #%3\">\n"
@@ -143,7 +141,6 @@ QString channelHeader(const Site& site, const ServerSnapshot& server, const QStr
         "</form>\n")
                 .arg(server.slug, channel, esc(channel));
 
-    // Online list, JS-free expandable
     if (!chan.online.isEmpty()) {
         html += QStringLiteral("<details class=\"online\"><summary>online: %1</summary><div class=\"online-list\">\n")
                     .arg(chan.online.size());
@@ -178,8 +175,7 @@ QString humanSize(qint64 bytes)
     return QStringLiteral("%1 MB").arg(QString::number(bytes / 1024.0 / 1024.0, 'f', 1));
 }
 
-// Clickable path as in v1: "/" is the channel root, then /year/month/day,
-// every segment except the last one is a link
+// Clickable path: every segment except the last one is a link.
 QString breadcrumbs(const QString& base, const QString& year,
                     const QString& month = QString(), const QString& day = QString())
 {
@@ -234,7 +230,6 @@ QString mainPage(const Site& site, const QString& mainPageText)
 
     QString welcome = mainPageText;
     welcome.replace(QStringLiteral("%LOCAL_TIME%"), util::currentLogTimeString());
-    // Same format as v1: "N (html) / M (ajax)" while real time mode is enabled
     QString requestsCounter = QString::number(site.state->requestsServedToday());
     if (!site.realtimeDisabled) {
         requestsCounter += QStringLiteral(" (html) / %1 (ajax)")
@@ -495,7 +490,7 @@ QString livePage(const Site& site, const ServerSnapshot& server, const QString& 
     // the channel archive is the no-referrer fallback
     nav += QStringLiteral("<a class=\"daynav-link\" id=\"live-back\" href=\"/%1/%2\">&larr; back</a>\n")
                .arg(server.slug, channel);
-    // Animated dots, green while the network works, red otherwise (as in v1)
+    // Animated dots, green while the network works, red otherwise
     nav += QStringLiteral("<span class=\"live-dots\" id=\"live-status\">.</span>\n");
     nav += QStringLiteral("</div>\n");
     content += nav;
@@ -520,6 +515,47 @@ QString errorPage(const Site& site, const QString& title, const QString& text)
         "</section>\n")
                                 .arg(esc(title), esc(text));
     return page(site, {}, title, content);
+}
+
+QString captchaPage(const Site& site, const QString& server, const QString& serverName,
+                    const QString& nick, const QString& hostHash, const QString& answer,
+                    const QString& nonce, const QString& message, bool success)
+{
+    QString modal;
+    modal += QStringLiteral("<div class=\"modal-backdrop\">\n<section class=\"modal captcha-modal\">\n");
+    modal += QStringLiteral("<h1 class=\"glow\">IRC voice gate</h1>\n");
+
+    if (answer.isEmpty()) {
+        // Solved / already-verified: only the positive result, no challenge copy.
+        modal += QStringLiteral("<p class=\"captcha-note %1\">%2</p>\n")
+                     .arg(success ? QStringLiteral("ok") : QStringLiteral("err"), esc(message));
+        modal += QStringLiteral("<p class=\"captcha-foot\"><a href=\"/\">[back to logs]</a></p>\n");
+    } else {
+        modal += QStringLiteral("<p class=\"captcha-sub\">Prove you are human, <b>%1</b>, to be voiced "
+                                "on moderated channels in <b>%2</b>.</p>\n")
+                     .arg(esc(nick), esc(serverName));
+        const QByteArray png = renderCaptchaPng(answer);
+        const QString dataUri = QStringLiteral("data:image/png;base64,")
+                                + QString::fromLatin1(png.toBase64());
+        modal += QStringLiteral("<div class=\"captcha-image\">"
+                                "<img class=\"captcha-img\" src=\"%1\" alt=\"captcha\"></div>\n")
+                     .arg(dataUri);
+        if (!message.isEmpty()) {
+            modal += QStringLiteral("<p class=\"captcha-note err\">%1</p>\n").arg(esc(message));
+        }
+        modal += QStringLiteral(
+                     "<form class=\"captcha-form\" method=\"post\" action=\"/~captcha/%1/%2/%3\">\n"
+                     "<input type=\"hidden\" name=\"nonce\" value=\"%4\">\n"
+                     "<input class=\"captcha-input\" name=\"answer\" type=\"text\" autocomplete=\"off\" "
+                     "autocapitalize=\"characters\" autocorrect=\"off\" spellcheck=\"false\" "
+                     "maxlength=\"12\" placeholder=\"enter the code\" aria-label=\"captcha answer\" autofocus>\n"
+                     "<button class=\"captcha-submit\" type=\"submit\">Verify</button>\n"
+                     "</form>\n")
+                     .arg(esc(server), esc(nick), esc(hostHash), esc(nonce));
+    }
+    modal += QStringLiteral("</section>\n</div>\n");
+
+    return page(site, {}, QStringLiteral("IRC voice gate"), modal, QString(), QStringLiteral("captcha-main"));
 }
 
 } // namespace ircabot::render

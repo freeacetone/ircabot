@@ -3,8 +3,9 @@
  * Copyright (C) acetone, 2021-2026. GPLv3.
  */
 
-#include "webui.h"
-#include "util.h"
+#include "WebUi.h"
+#include "Util.h"
+#include "VoiceGate.h"
 
 #include <QDebug>
 #include <QDir>
@@ -33,6 +34,7 @@ constexpr const char* DEFAULT_MAIN_PAGE =
     "Requests served today: %DAILY_REQUESTS%\n";
 
 constexpr const char* THEME_COOKIE = "ircabot_theme";
+constexpr int CAPTCHA_TTL_SEC = 600;
 
 // Path segments come from the network: never let them reach the filesystem raw
 bool safeSegment(const QString& s)
@@ -108,13 +110,15 @@ QHttpServerResponse themeRedirect(const QString& mode, const QUrlQuery& query)
 } // namespace
 
 WebUi::WebUi(const Config& config, RuntimeState* state,
-             const QHash<QString, std::shared_ptr<LogStore>>& stores, QObject* parent)
+             const QHash<QString, std::shared_ptr<LogStore>>& stores,
+             VoiceGate* voiceGate, QObject* parent)
     : QObject(parent),
       m_dataPath(config.dataPath()),
       m_bindAddress(config.bindAddress()),
       m_bindPort(config.bindPort()),
       m_state(state),
-      m_stores(stores)
+      m_stores(stores),
+      m_voiceGate(voiceGate)
 {
     m_site.serviceName = config.serviceName();
     m_site.serviceEmoji = config.serviceEmoji();
@@ -184,7 +188,6 @@ render::Site WebUi::siteFor(const QHttpServerRequest& request) const
 
 void WebUi::setupRoutes()
 {
-    // --- Static assets (tiny, served from memory) ---
     m_server.route(QStringLiteral("/style.css"), []() {
         return cachedAsset(QByteArrayLiteral("text/css; charset=utf-8"), qrcFile(QStringLiteral("style.css")));
     });
@@ -201,13 +204,23 @@ void WebUi::setupRoutes()
         });
     }
 
-    // --- Theme switch: sets a persistent cookie and redirects back ---
     m_server.route(QStringLiteral("/~theme/<arg>"),
                    [](const QString& mode, const QHttpServerRequest& request) {
         return themeRedirect(mode, request.query());
     });
 
-    // --- Main page ---
+    if (m_voiceGate && m_voiceGate->enabled()) {
+        m_server.route(QStringLiteral("/~captcha/<arg>/<arg>/<arg>"),
+                       [this](const QString& server, const QString& nick, const QString& hostHash,
+                              const QHttpServerRequest& request) {
+            const bool isPost = request.method() == QHttpServerRequest::Method::Post;
+            const QByteArray body = request.body();
+            return QtConcurrent::run([this, server, nick, hostHash, isPost, body, site = siteFor(request)] {
+                return serveCaptcha(site, server, nick, hostHash, isPost, body);
+            });
+        });
+    }
+
     m_server.route(QStringLiteral("/"), [this](const QHttpServerRequest& request) {
         return QtConcurrent::run([this, site = siteFor(request)] {
             m_state->countRequest();
@@ -215,7 +228,6 @@ void WebUi::setupRoutes()
         });
     });
 
-    // --- Custom images from <data>/custom_images/ (v1 compatibility) ---
     m_server.route(QStringLiteral("/~images/<arg>"), [this](const QUrl& rest, const QHttpServerRequest& request) {
         return QtConcurrent::run([this, rest, site = siteFor(request)] {
             const QString name = rest.path();
@@ -233,7 +245,7 @@ void WebUi::setupRoutes()
         });
     });
 
-    // --- Real time reading: the only pages with JavaScript ---
+    // Real time reading: the only pages with JavaScript
     if (!m_site.realtimeDisabled) {
         m_server.route(QStringLiteral("/~realtime/<arg>/<arg>"),
                        [this](const QString& slug, const QString& channel, const QHttpServerRequest& request) {
@@ -249,16 +261,15 @@ void WebUi::setupRoutes()
             });
         });
 
-        m_server.route(QStringLiteral("/ajax/<arg>/<arg>"),
+        m_server.route(QStringLiteral("/~api/<arg>/<arg>"),
                        [this](const QString& slug, const QString& channel, const QHttpServerRequest& request) {
             return QtConcurrent::run([this, slug, channel,
                                       after = request.query().queryItemValue(QStringLiteral("after")).toULongLong()] {
-                return serveAjax(slug, channel, after);
+                return serveApi(slug, channel, after);
             });
         });
     }
 
-    // --- Server about page ---
     m_server.route(QStringLiteral("/<arg>"), [this](const QString& slug, const QHttpServerRequest& request) {
         return QtConcurrent::run([this, slug, site = siteFor(request)] {
             m_state->countRequest();
@@ -272,7 +283,7 @@ void WebUi::setupRoutes()
         });
     });
 
-    // --- Channel pages: /<server>/<channel>[/yyyy[/MM[/dd[.txt]]]] ---
+    // Channel pages: /<server>/<channel>[/yyyy[/MM[/dd[.txt]]]]
     m_server.route(QStringLiteral("/<arg>/<arg>"),
                    [this](const QString& slug, const QString& channel, const QHttpServerRequest& request) {
         return QtConcurrent::run([this, slug, channel, query = request.query(), site = siteFor(request)] {
@@ -377,7 +388,7 @@ QHttpServerResponse WebUi::servePage(const render::Site& site,
     return html(render::dayPage(site, server, channel, store, date));
 }
 
-QHttpServerResponse WebUi::serveAjax(const QString& slug, const QString& channel, quint64 afterId)
+QHttpServerResponse WebUi::serveApi(const QString& slug, const QString& channel, quint64 afterId)
 {
     m_state->countAjaxRequest();
 
@@ -417,6 +428,63 @@ QHttpServerResponse WebUi::serveAjax(const QString& slug, const QString& channel
         {QStringLiteral("online"), onlineJson},
         {QStringLiteral("messages"), messagesJson},
     });
+}
+
+QHttpServerResponse WebUi::serveCaptcha(const render::Site& site, const QString& server,
+                                        const QString& nick, const QString& hostHash,
+                                        bool isPost, const QByteArray& body)
+{
+    m_state->countRequest();
+
+    static const QRegularExpression hexHash(QStringLiteral("^[0-9a-f]{32}$"));
+    if (!m_voiceGate || !m_voiceGate->enabled()) {
+        return html(render::errorPage(site, QStringLiteral("404"), QStringLiteral("Voice gate is disabled")),
+                    QHttpServerResponse::StatusCode::NotFound);
+    }
+    if (!safeSegment(server) || !safeSegment(nick) || !hexHash.match(hostHash).hasMatch()) {
+        return html(render::errorPage(site, QStringLiteral("400"), QStringLiteral("Bad request")),
+                    QHttpServerResponse::StatusCode::BadRequest);
+    }
+    bool found = false;
+    const ServerSnapshot snap = m_state->snapshot(server, &found);
+    if (!found) {
+        return html(render::errorPage(site, QStringLiteral("404"), QStringLiteral("No such server: ") + server),
+                    QHttpServerResponse::StatusCode::NotFound);
+    }
+    const QString& serverName = snap.displayName;
+    // The nonce is bound to server + nick + host hash, so it cannot be replayed
+    // for a different server, nick or host.
+    const QString identity = server + '/' + nick + '/' + hostHash;
+
+    // Already voiced (this exact nick+host on this server): no fresh captcha.
+    if (m_voiceGate->isVerified(server, nick, hostHash)) {
+        return html(render::captchaPage(
+            site, server, serverName, nick, hostHash, QString(), QString(),
+            QStringLiteral("You are already verified - you have a voice on moderated channels in ") + serverName + '.',
+            true));
+    }
+
+    const int length = m_voiceGate->config().captchaLength;
+
+    if (isPost) {
+        const QUrlQuery form(QString::fromUtf8(body));
+        const QString nonce = form.queryItemValue(QStringLiteral("nonce"), QUrl::FullyDecoded);
+        const QString answer = form.queryItemValue(QStringLiteral("answer"), QUrl::FullyDecoded);
+        if (m_captcha.verify(identity, nonce, answer)) {
+            m_voiceGate->reportSolved(server, nick, hostHash);
+            return html(render::captchaPage(
+                site, server, serverName, nick, hostHash, QString(), QString(),
+                QStringLiteral("Correct. You will be voiced on moderated channels in ") + serverName
+                    + QStringLiteral(" shortly."),
+                true));
+        }
+        const Captcha::Challenge c = m_captcha.issue(identity, length, CAPTCHA_TTL_SEC);
+        return html(render::captchaPage(site, server, serverName, nick, hostHash, c.answer, c.nonce,
+                                        QStringLiteral("Wrong answer, please try again."), false));
+    }
+
+    const Captcha::Challenge c = m_captcha.issue(identity, length, CAPTCHA_TTL_SEC);
+    return html(render::captchaPage(site, server, serverName, nick, hostHash, c.answer, c.nonce, QString(), false));
 }
 
 } // namespace ircabot

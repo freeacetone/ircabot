@@ -3,9 +3,9 @@
  * Copyright (C) acetone, 2021-2026. GPLv3.
  */
 
-#include "state.h"
+#include "State.h"
 
-#include "util.h"
+#include "Util.h"
 
 namespace ircabot {
 

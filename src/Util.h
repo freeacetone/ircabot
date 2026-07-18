@@ -24,7 +24,7 @@ QDate currentLogDate();
 // (the " UTC" suffix is dropped when local time is configured).
 QString currentLogTimeString();
 
-// "Ilita IRC" -> "ilita_irc" (folder name and URL path segment, v1-compatible)
+// "Ilita IRC" -> "ilita_irc" (folder name and URL path segment)
 QString slugify(const QString& name);
 
 // HTML-escape, then turn http(s):// URLs into <a> links

@@ -13,6 +13,18 @@
         "realtime_disabled": false
     },
 
+    "voicegate": {
+        "_comment": "On moderated (+m) channels where the bot is an operator, a new user must solve the captcha at <captcha_url>/~captcha/<nick> to be voiced (+v). Voice is granted server-wide. set_moderated: bot sets +m itself once it is op. captcha_url empty -> derived from web address:port",
+        "enabled": true,
+        "set_moderated": true,
+        "captcha_url": "",
+        "captcha_length": 4,
+        "connect_delay_seconds": 10,
+        "offline_ttl_hours": 24,
+        "pm_interval_hours": 24,
+        "private_message": "I am a bot that protects chats from flooding. I can give you a voice if you pass the captcha:"
+    },
+
     "defaults": {
         "_comment": "Used for every server unless overridden. Empty password: no NickServ login",
         "nick": "default_nickname",

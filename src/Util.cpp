@@ -3,7 +3,7 @@
  * Copyright (C) acetone, 2021-2026. GPLv3.
  */
 
-#include "util.h"
+#include "Util.h"
 
 #include <QCryptographicHash>
 #include <QDateTime>

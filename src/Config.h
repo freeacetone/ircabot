@@ -27,7 +27,21 @@ struct ServerConfig
     QMap<QString, QString> triggers; // request -> answer
 };
 
-// JSON configuration file. See exampleText() for the full structure.
+// Voice gate: on moderated (+m) channels where the bot can grant +v, new users
+// must solve a captcha to be voiced.
+struct VoiceGateConfig
+{
+    bool enabled = true;
+    bool setModerated = true;     // set +m on a gated channel once the bot is op
+    int connectDelaySeconds = 10; // wait after a join before the first captcha PM
+    int captchaLength = 4;        // number of characters in the captcha image
+    int offlineTtlHours = 24;     // drop a voiced user's grant after this offline time
+    int pmIntervalHours = 24;     // do not PM the same user more often than this
+    QString captchaUrl;           // public base URL for the PM link; empty -> derive
+    QString privateMessage;       // captcha PM body; the link is appended after it
+};
+
+// JSON configuration file.
 // Top-level keys: data_path, web{}, defaults{}, triggers{}, servers[].
 class Config
 {
@@ -44,6 +58,7 @@ public:
     const QString& serviceName() const     { return m_serviceName; }
     const QString& serviceEmoji() const    { return m_serviceEmoji; }
     bool realtimeDisabled() const          { return m_realtimeDisabled; }
+    const VoiceGateConfig& voiceGate() const { return m_voiceGate; }
     const QList<ServerConfig>& servers() const { return m_servers; }
 
 private:
@@ -56,6 +71,7 @@ private:
     QString m_serviceName;
     QString m_serviceEmoji;
     bool m_realtimeDisabled = false;
+    VoiceGateConfig m_voiceGate;
     QList<ServerConfig> m_servers;
 };
 

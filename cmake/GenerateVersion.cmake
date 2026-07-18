@@ -36,5 +36,5 @@ string(REGEX REPLACE "^v" "" _version "${_version}")
 # configure_file substitutes @IRCABOT_VERSION@; only rewrites version.h when the
 # content actually changes, so unchanged versions do not trigger a rebuild.
 set(IRCABOT_VERSION "${_version}")
-configure_file("${SRC_DIR}/src/version.h.in" "${BIN_DIR}/version.h" @ONLY)
+configure_file("${SRC_DIR}/src/Version.h.in" "${BIN_DIR}/Version.h" @ONLY)
 file(WRITE "${BIN_DIR}/ircabot_version.txt" "${_version}")

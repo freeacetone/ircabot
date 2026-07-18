@@ -29,7 +29,7 @@ struct SearchHit
 struct DayEntry
 {
     QString day;       // "14"
-    qint64 bytes = 0;  // log file size
+    qint64 bytes = 0;
 };
 
 struct MonthEntry
@@ -48,7 +48,7 @@ struct SearchResult
     int scannedDays = 0;
 };
 
-// IRCaBot v1 on-disk format:
+// On-disk format:
 //   <data>/<server_slug>/<channel>/<yyyy>/<MM>/<dd>.txt with lines "[nick] message"
 //   <data>/<server_slug>/about_server.txt
 //   <data>/main_page.txt

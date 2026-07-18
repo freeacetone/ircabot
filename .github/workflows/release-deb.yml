@@ -22,7 +22,7 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends \
             build-essential cmake g++ file dpkg-dev \
-            qt6-base-dev qt6-httpserver-dev qt6-websockets-dev \
+            qt6-base-dev qt6-httpserver-dev qt6-websockets-dev libssl-dev \
             git ca-certificates
 
       - name: Checkout

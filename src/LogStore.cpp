@@ -3,9 +3,9 @@
  * Copyright (C) acetone, 2021-2026. GPLv3.
  */
 
-#include "logstore.h"
+#include "LogStore.h"
 
-#include "util.h"
+#include "Util.h"
 
 #include <QDebug>
 #include <QDir>

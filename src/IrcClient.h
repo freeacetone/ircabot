@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include "config.h"
-#include "logstore.h"
-#include "state.h"
+#include "Config.h"
+#include "LogStore.h"
+#include "State.h"
 
 #include <QHash>
 #include <QObject>
@@ -17,13 +17,16 @@
 
 namespace ircabot {
 
+class VoiceGate;
+
 // One IRC connection. Fully event-driven: no worker threads, no blocking
 // waitFor*() calls. Lives in the main thread together with all other clients.
 class IrcClient : public QObject
 {
     Q_OBJECT
 public:
-    IrcClient(const ServerConfig& config, RuntimeState* state, LogStore* store, QObject* parent = nullptr);
+    IrcClient(const ServerConfig& config, RuntimeState* state, LogStore* store,
+              VoiceGate* voiceGate, QObject* parent = nullptr);
     ~IrcClient() override;
 
     void start();
@@ -36,14 +39,16 @@ private slots:
     void onNamesRefresh();
     void onNickRecover();
     void onEnsureJoined();
+    void onVoiceGateTick();
 
 private:
     struct IrcMessage
     {
         QString prefixNick; // sender nick from ":nick!user@host"
-        QString command;    // "PRIVMSG", "001", ...
-        QStringList params; // middle params
-        QString trailing;   // text after " :"
+        QString prefixHost; // host from ":nick!user@host" (for the voice gate)
+        QString command;
+        QStringList params;
+        QString trailing;
     };
     static IrcMessage parseLine(const QString& line);
 
@@ -58,6 +63,15 @@ private:
     QString currentNick() const;
     void consoleLog(const QString& message) const;
 
+    // --- Voice gate ---------------------------------------------------------
+    bool voiceGateActive() const;
+    bool botCanVoiceIn(const QString& channel) const;      // bot holds op/halfop here
+    bool isUserPresent(const QString& nick) const;         // in any channel we see
+    void sendAction(const QString& target, const QString& text);
+    void grantVoice(const QString& channel, const QString& nick);
+    void sendCaptchaPm(const QString& nick, const QString& host);
+    void userWentOffline(const QString& nick);             // start TTL, forget host
+
     static constexpr int RECONNECT_DELAY_MS = 10000;
     static constexpr int WATCHDOG_INTERVAL_MS = 30000;
     static constexpr int KEEPALIVE_SILENCE_MS = 120000;
@@ -68,10 +82,15 @@ private:
     // Servers may reject early JOIN (UnrealIRCd: "you must be connected for
     // at least 10 seconds"), so missing channels are re-joined periodically.
     static constexpr int JOIN_RETRY_MS = 11000;
+    static constexpr int VOICEGATE_TICK_MS = 3000;    // reconcile cadence
+    static constexpr int VOICE_COOLDOWN_MS = 8000;    // don't re-issue +v this fast
+    static constexpr int WHO_THROTTLE_MS = 30000;     // refresh missing hosts at most this often
+    static constexpr int SWEEP_INTERVAL_MS = 600000;  // TTL cleanup every 10 min
 
     ServerConfig m_config;
     RuntimeState* m_state;
     LogStore* m_store;
+    VoiceGate* m_voiceGate;
 
     QSslSocket* m_socket = nullptr;
     QByteArray m_buffer;
@@ -86,11 +105,21 @@ private:
     QHash<QString, QStringList> m_namesAccum;    // NAMES replies being accumulated
     QSet<QString> m_joined;                      // really joined channels, lowercased
 
+    // Voice-gate bookkeeping (lowercased keys throughout).
+    QHash<QString, QString> m_userHost;          // nick -> host, from JOIN/WHO
+    QSet<QString> m_moderated;                    // channels currently +m
+    QSet<QString> m_gated;                        // channels currently in voice-gate mode
+    QSet<QString> m_setModerated;                 // channels we already sent +m to
+    QHash<QString, qint64> m_pendingSince;        // nick -> first seen unvoiced (ms)
+    QHash<QString, qint64> m_lastWho;             // channel -> last WHO (ms)
+    qint64 m_lastSweep = 0;
+
     QTimer m_reconnectTimer;
     QTimer m_watchdogTimer;
     QTimer m_namesTimer;
     QTimer m_nickRecoverTimer;
     QTimer m_joinTimer;
+    QTimer m_voiceGateTimer;
 };
 
 } // namespace ircabot

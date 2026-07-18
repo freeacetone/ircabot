@@ -3,13 +3,14 @@
  * Copyright (C) acetone, 2021-2026. GPLv3.
  */
 
-#include "config.h"
-#include "ircclient.h"
-#include "logstore.h"
-#include "state.h"
-#include "util.h"
-#include "version.h"
-#include "webui.h"
+#include "Config.h"
+#include "IrcClient.h"
+#include "LogStore.h"
+#include "State.h"
+#include "Util.h"
+#include "Version.h"
+#include "VoiceGate.h"
+#include "WebUi.h"
 
 #include <QCoreApplication>
 #include <QDebug>
@@ -110,15 +111,24 @@ int main(int argc, char* argv[])
                           << (config.logLocalTime() ? "server local time" : "UTC");
         RuntimeState state;
 
+        // Public base URL used in captcha PMs; fall back to the bind address.
+        QString captchaBase = config.voiceGate().captchaUrl;
+        if (captchaBase.isEmpty()) {
+            captchaBase = QStringLiteral("http://%1:%2")
+                              .arg(config.bindAddress()).arg(config.bindPort());
+        }
+        VoiceGate voiceGate(config.dataPath(), config.voiceGate(), captchaBase);
+        qInfo().noquote() << "Voice gate:" << (config.voiceGate().enabled ? "enabled" : "disabled");
+
         QHash<QString, std::shared_ptr<LogStore>> stores;
         QList<IrcClient*> clients;
         for (const ServerConfig& serverConfig : config.servers()) {
             auto store = std::make_shared<LogStore>(config.dataPath(), serverConfig.slug, serverConfig.channels);
             stores.insert(serverConfig.slug, store);
-            clients.push_back(new IrcClient(serverConfig, &state, store.get(), &app));
+            clients.push_back(new IrcClient(serverConfig, &state, store.get(), &voiceGate, &app));
         }
 
-        WebUi web(config, &state, stores, &app);
+        WebUi web(config, &state, stores, &voiceGate, &app);
         if (!web.listen()) {
             return 1;
         }
@@ -127,7 +137,13 @@ int main(int argc, char* argv[])
             client->start();
         }
 
-        return app.exec();
+        const int rc = app.exec();
+        // Destroy the clients (each sends a QUIT) while the RuntimeState, stores
+        // and voice gate they hold pointers to are still alive - otherwise the
+        // app would delete them last, after those locals have unwound.
+        qDeleteAll(clients);
+        clients.clear();
+        return rc;
     } catch (const std::exception& e) {
         qCritical().noquote() << "Fatal:" << e.what();
         return 1;

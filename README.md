@@ -12,7 +12,10 @@ Complete rewrite of IRCaBot on Qt6: only the logger and the web UI, nothing else
   a documented template). Top-level keys: `data_path`, `log_local_time`
   (day rotation timezone: `false`/default = UTC, `true` = server local time),
   `web{}` (address, port,
-  service name/emoji, `realtime_disabled`), `defaults{}` (nick/user/real_name/
+  service name/emoji, `realtime_disabled`), `voicegate{}` (`enabled`,
+  `set_moderated`, `captcha_url`, `captcha_length`, `connect_delay_seconds`,
+  `offline_ttl_hours`, `pm_interval_hours`, `private_message`),
+  `defaults{}` (nick/user/real_name/
   password for all servers), `triggers{}` (request -> answer) and `servers[]`
   (name, address, port, optional `ssl`, channels, per-server overrides).
   Keys starting with `_` are ignored and can be used as comments.
@@ -46,6 +49,15 @@ Complete rewrite of IRCaBot on Qt6: only the logger and the web UI, nothing else
   (`botnick, webui`), `%CHANNEL_FOR_URL%` and `%VERSION%` are substituted
   automatically;
 - NickServ authorization, busy nickname fallback and automatic recovery;
+- **Voice gate** (on by default): on moderated (`+m`) channels where the bot is
+  an operator, a newly joined user is given `connect_delay_seconds` to settle,
+  then PMed a link to a JS-free captcha (`/~captcha/<nick>`). Solving it voices
+  the user (`+v`) on every gated channel of that server. The grant is bound to
+  nick + an md5 of the host and stored under `data/_voicegate/<server>/`; it
+  survives a reconnect (the bot re-voices automatically) and is dropped after
+  `offline_ttl_hours` offline. The captcha is stateless - the challenge lives in
+  an AES-256 encrypted, signed nonce in the form, so no challenge database is
+  kept. The bot announces the mode with `/me Voice gate mode activated`;
 - Customizable pages: `main_page.txt` (with `%LOCAL_TIME%` and
   `%DAILY_REQUESTS%` placeholders) and a per-server page
   `data/<server>/about_server.txt` - plain HTML, edited on disk, no rebuild

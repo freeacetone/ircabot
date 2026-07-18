@@ -22,7 +22,7 @@ set(_version_args
     -DIRCABOT_VERSION=${IRCABOT_VERSION}
 )
 
-# Resolve once at configure time so version.h exists and CPack knows the version.
+# Resolve once at configure time so Version.h exists and CPack knows the version.
 execute_process(
     COMMAND ${CMAKE_COMMAND} ${_version_args} -P ${_version_script}
 )
@@ -31,37 +31,44 @@ string(STRIP "${IRCABOT_VERSION_RESOLVED}" IRCABOT_VERSION_RESOLVED)
 message(STATUS "IRCaBot version: ${IRCABOT_VERSION_RESOLVED}")
 
 find_package(Qt6 6.4 REQUIRED COMPONENTS Core Network HttpServer Concurrent)
+find_package(OpenSSL REQUIRED) # libcrypto: AES-256 for the stateless captcha nonce
 
 add_executable(ircabot
-    src/main.cpp
-    src/config.cpp
-    src/config.h
-    src/ircclient.cpp
-    src/ircclient.h
-    src/logstore.cpp
-    src/logstore.h
-    src/render.cpp
-    src/render.h
-    src/state.cpp
-    src/state.h
-    src/util.cpp
-    src/util.h
-    src/webui.cpp
-    src/webui.h
+    src/Main.cpp
+    src/Captcha.cpp
+    src/Captcha.h
+    src/CaptchaImage.cpp
+    src/CaptchaImage.h
+    src/Config.cpp
+    src/Config.h
+    src/IrcClient.cpp
+    src/IrcClient.h
+    src/LogStore.cpp
+    src/LogStore.h
+    src/Render.cpp
+    src/Render.h
+    src/State.cpp
+    src/State.h
+    src/Util.cpp
+    src/Util.h
+    src/VoiceGate.cpp
+    src/VoiceGate.h
+    src/WebUi.cpp
+    src/WebUi.h
     assets/assets.qrc
 )
 
 # Re-resolve the version on every build so new commits/tags are reflected
-# without reconfiguring (version.h is rewritten only when it actually changes).
+# without reconfiguring (Version.h is rewritten only when it actually changes).
 add_custom_target(ircabot_version ALL
-    BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/version.h
+    BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/Version.h
     COMMAND ${CMAKE_COMMAND} ${_version_args} -P ${_version_script}
     COMMENT "Resolving IRCaBot version from git"
     VERBATIM
 )
 add_dependencies(ircabot ircabot_version)
 
-# The generated version.h lives in the build tree.
+# The generated Version.h lives in the build tree.
 target_include_directories(ircabot PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 target_link_libraries(ircabot PRIVATE
@@ -69,6 +76,7 @@ target_link_libraries(ircabot PRIVATE
     Qt6::Network
     Qt6::HttpServer
     Qt6::Concurrent
+    OpenSSL::Crypto
 )
 
 # --- Install ---------------------------------------------------------------

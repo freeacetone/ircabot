@@ -3,8 +3,8 @@
  * Copyright (C) acetone, 2021-2026. GPLv3.
  */
 
-#include "config.h"
-#include "util.h"
+#include "Config.h"
+#include "Util.h"
 
 #include <QDebug>
 #include <QDir>
@@ -18,6 +18,12 @@
 namespace ircabot {
 
 namespace {
+
+// Default captcha PM body. The captcha link is appended after it (with a
+// single leading space); an empty message sends just the link.
+constexpr const char* DEFAULT_PRIVATE_MESSAGE =
+    "I am a bot that protects chats from flooding. "
+    "I can give you a voice if you pass the captcha:";
 
 QMap<QString, QString> readTriggers(const QJsonObject& obj, const QString& context)
 {
@@ -61,6 +67,18 @@ QString Config::exampleText()
         "service_name": "IRCaBot",
         "service_emoji": "&#128193;",
         "realtime_disabled": false
+    },
+
+    "voicegate": {
+        "_comment": "On moderated (+m) channels where the bot is an operator, a new user must solve the captcha at <captcha_url>/~captcha/<nick> to be voiced (+v). Voice is granted server-wide. set_moderated: bot sets +m itself once it is op. captcha_url empty -> derived from web address:port",
+        "enabled": true,
+        "set_moderated": true,
+        "captcha_url": "",
+        "captcha_length": 4,
+        "connect_delay_seconds": 10,
+        "offline_ttl_hours": 24,
+        "pm_interval_hours": 24,
+        "private_message": "I am a bot that protects chats from flooding. I can give you a voice if you pass the captcha:"
     },
 
     "defaults": {
@@ -142,6 +160,25 @@ void Config::parse(const QByteArray& raw)
     m_serviceEmoji = web.value(QStringLiteral("service_emoji")).toString(QStringLiteral("&#128193;"));
     m_realtimeDisabled = web.value(QStringLiteral("realtime_disabled")).toBool(false);
 
+    // Voice gate. Absent block keeps the feature on with its defaults.
+    const QJsonObject vg = root.value(QStringLiteral("voicegate")).toObject();
+    m_voiceGate.enabled = vg.value(QStringLiteral("enabled")).toBool(true);
+    m_voiceGate.setModerated = vg.value(QStringLiteral("set_moderated")).toBool(true);
+    m_voiceGate.connectDelaySeconds = vg.value(QStringLiteral("connect_delay_seconds")).toInt(10);
+    m_voiceGate.captchaLength = vg.value(QStringLiteral("captcha_length")).toInt(4);
+    m_voiceGate.offlineTtlHours = vg.value(QStringLiteral("offline_ttl_hours")).toInt(24);
+    m_voiceGate.pmIntervalHours = vg.value(QStringLiteral("pm_interval_hours")).toInt(24);
+    m_voiceGate.captchaUrl = vg.value(QStringLiteral("captcha_url")).toString().trimmed();
+    m_voiceGate.privateMessage = vg.value(QStringLiteral("private_message"))
+                                     .toString(QString::fromUtf8(DEFAULT_PRIVATE_MESSAGE));
+    while (m_voiceGate.captchaUrl.endsWith('/')) {
+        m_voiceGate.captchaUrl.chop(1);
+    }
+    m_voiceGate.connectDelaySeconds = qBound(0, m_voiceGate.connectDelaySeconds, 3600);
+    m_voiceGate.captchaLength = qBound(3, m_voiceGate.captchaLength, 8);
+    m_voiceGate.offlineTtlHours = qBound(1, m_voiceGate.offlineTtlHours, 24 * 365);
+    m_voiceGate.pmIntervalHours = qBound(0, m_voiceGate.pmIntervalHours, 24 * 365);
+
     const QJsonObject defaults = root.value(QStringLiteral("defaults")).toObject();
     const QString defaultNick = defaults.value(QStringLiteral("nick")).toString().replace(' ', '_');
     const QString defaultUser = defaults.value(QStringLiteral("user")).toString();
@@ -162,6 +199,21 @@ void Config::parse(const QByteArray& raw)
             continue;
         }
         srv.slug = util::slugify(srv.displayName);
+        // The slug is used verbatim in URLs and on disk. Restrict it to a safe
+        // identifier so it can never collide with the /~... service endpoints
+        // (e.g. a server named "~captcha") or escape the filesystem. Fail loudly
+        // at startup rather than silently mangling paths.
+        for (const QChar ch : srv.slug) {
+            const bool ok = (ch >= QLatin1Char('a') && ch <= QLatin1Char('z'))
+                         || (ch >= QLatin1Char('0') && ch <= QLatin1Char('9'))
+                         || ch == QLatin1Char('_') || ch == QLatin1Char('-');
+            if (!ok) {
+                throw std::runtime_error(
+                    ("Server name '" + srv.displayName + "' yields an invalid identifier '"
+                     + srv.slug + "': only latin letters, digits, '_' and '-' are allowed")
+                        .toStdString());
+            }
+        }
 
         srv.address = s.value(QStringLiteral("address")).toString();
         if (srv.address.isEmpty()) {

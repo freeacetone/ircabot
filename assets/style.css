@@ -518,6 +518,94 @@ body { overflow: hidden; } /* the page itself never scrolls */
 
 .month-name { color: var(--ink-faint); font-weight: 400; }
 
+/* ------------------------------------------------- voice-gate captcha */
+
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    overflow-y: auto;
+    background: rgba(8, 7, 6, 0.72);
+    backdrop-filter: blur(3px) saturate(0.85);
+    -webkit-backdrop-filter: blur(3px) saturate(0.85);
+}
+
+.modal.captcha-modal {
+    width: 100%;
+    max-width: 420px;
+    margin: auto;
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: 8px;
+    padding: 26px 26px 22px;
+    text-align: center;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 42px var(--glow-amber);
+    animation: captcha-in 0.28s ease-out;
+}
+
+@keyframes captcha-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.98); }
+    to   { opacity: 1; transform: none; }
+}
+
+.captcha-modal h1 { font-size: 26px; color: var(--amber); margin: 0 0 6px; letter-spacing: 1px; }
+.captcha-sub { color: var(--ink-dim); font-size: 13px; margin: 0 0 16px; }
+.captcha-sub b { color: var(--ink); }
+
+.captcha-image { display: flex; justify-content: center; margin: 0 0 14px; }
+.captcha-img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    border: 1px solid var(--panel-edge);
+    user-select: none;
+}
+
+.captcha-form { display: flex; flex-direction: column; gap: 10px; }
+
+.captcha-input {
+    background: var(--bg-deep);
+    border: 1px solid var(--panel-edge);
+    border-radius: 5px;
+    color: var(--amber);
+    font-family: var(--mono);
+    font-size: 20px;
+    letter-spacing: 6px;
+    text-align: center;
+    text-transform: uppercase;
+    padding: 12px 10px;
+    outline: none;
+}
+.captcha-input:focus { border-color: var(--amber-soft); box-shadow: 0 0 0 2px var(--tint-amber); }
+.captcha-input::placeholder { color: var(--ink-faint); letter-spacing: 1px; text-transform: none; }
+
+.captcha-submit {
+    background: var(--amber);
+    color: var(--bg-deep);
+    border: none;
+    border-radius: 5px;
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 11px 10px;
+    cursor: pointer;
+}
+.captcha-submit:hover { background: var(--amber-bright); }
+
+.captcha-note { font-size: 13px; margin: 0 0 12px; }
+.captcha-note.ok  { color: var(--green); }
+.captcha-note.err { color: var(--red); }
+
+.captcha-foot { color: var(--ink-faint); font-size: 12px; margin: 14px 0 0; }
+.captcha-foot a { color: var(--ink-dim); }
+.captcha-foot a:hover { color: var(--amber); }
+
 /* ------------------------------------------------- responsive */
 
 @media (max-width: 800px) {
@@ -589,4 +677,10 @@ body { overflow: hidden; } /* the page itself never scrolls */
     .daynav-link { padding: 5px 12px; } /* bigger touch targets */
     .arch-row { padding: 9px 14px; }
     .online-list { gap: 8px 16px; }
+
+    .modal-backdrop { padding: 12px; align-items: flex-start; }
+    .modal.captcha-modal { padding: 20px 16px 18px; }
+    .captcha-modal h1 { font-size: 22px; }
+    .captcha-input { font-size: 18px; letter-spacing: 4px; }
+    .captcha-submit { padding: 13px 10px; } /* bigger touch target */
 }
