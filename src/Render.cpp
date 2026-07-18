@@ -113,7 +113,8 @@ QString page(const Site& site, const PageRef& ref, const QString& title,
 }
 
 QString channelHeader(const Site& site, const ServerSnapshot& server, const QString& channel,
-                      const QString& subtitle)
+                      const QString& subtitle, const QString& year = QString(),
+                      const QString& month = QString(), const QString& day = QString())
 {
     const ChannelSnapshot chan = site.state->channelSnapshot(server.slug, channel);
 
@@ -130,16 +131,37 @@ QString channelHeader(const Site& site, const ServerSnapshot& server, const QStr
         html += QStringLiteral("<p class=\"chan-topic\">%1</p>\n").arg(util::escapeAndLinkify(chan.topic));
     }
 
+    // The search is scoped to where the reader currently stands in the archive:
+    // the form posts back to that same date path, so the scan covers the whole
+    // channel, a year, a month or a single day. The placeholder spells the scope
+    // out - "/ of #chan", "/2020 #chan", "/2020/05 #chan", "/2020/05/28 #chan".
+    QString action = QStringLiteral("/%1/%2").arg(server.slug, channel);
+    QString scope;
+    if (!year.isEmpty()) {
+        action += '/' + year;
+        scope += '/' + year;
+        if (!month.isEmpty()) {
+            action += '/' + month;
+            scope += '/' + month;
+            if (!day.isEmpty()) {
+                action += '/' + day;
+                scope += '/' + day;
+            }
+        }
+    }
+    const QString placeholder = (scope.isEmpty() ? QStringLiteral("/ of") : scope)
+                                + QStringLiteral(" #") + channel;
+
     // Grep button on the right, stretched to the width of the regexp checkbox below it.
     html += QStringLiteral(
-        "<form class=\"search\" method=\"get\" action=\"/%1/%2\">\n"
-        "<input class=\"search-input\" type=\"search\" name=\"toSearch\" placeholder=\"search in #%3\">\n"
+        "<form class=\"search\" method=\"get\" action=\"%1\">\n"
+        "<input class=\"search-input\" type=\"search\" name=\"toSearch\" placeholder=\"%2\">\n"
         "<div class=\"search-side\">\n"
         "<button class=\"search-btn\" type=\"submit\">grep</button>\n"
         "<label class=\"search-rgx\"><input type=\"checkbox\" name=\"isRegexp\" value=\"on\"> regexp</label>\n"
         "</div>\n"
         "</form>\n")
-                .arg(server.slug, channel, esc(channel));
+                .arg(action, esc(placeholder));
 
     if (!chan.online.isEmpty()) {
         html += QStringLiteral("<details class=\"online\"><summary>online: %1</summary><div class=\"online-list\">\n")
@@ -311,7 +333,7 @@ QString calendarPage(const Site& site, const ServerSnapshot& server, const QStri
 QString yearPage(const Site& site, const ServerSnapshot& server, const QString& channel,
                  const LogStore& store, const QString& year)
 {
-    QString content = channelHeader(site, server, channel, QStringLiteral("archive"));
+    QString content = channelHeader(site, server, channel, QStringLiteral("archive"), year);
 
     const QString base = '/' + server.slug + '/' + channel;
     QString nav = QStringLiteral("<div class=\"daynav\">\n");
@@ -344,7 +366,7 @@ QString yearPage(const Site& site, const ServerSnapshot& server, const QString& 
 QString monthPage(const Site& site, const ServerSnapshot& server, const QString& channel,
                   const LogStore& store, const QString& year, const QString& month)
 {
-    QString content = channelHeader(site, server, channel, QStringLiteral("archive"));
+    QString content = channelHeader(site, server, channel, QStringLiteral("archive"), year, month);
 
     const QString base = '/' + server.slug + '/' + channel;
     QString nav = QStringLiteral("<div class=\"daynav\">\n");
@@ -374,7 +396,10 @@ QString dayPage(const Site& site, const ServerSnapshot& server, const QString& c
                 const LogStore& store, const QDate& date)
 {
     const QString dateStr = date.toString(QStringLiteral("yyyy-MM-dd"));
-    QString content = channelHeader(site, server, channel, dateStr);
+    QString content = channelHeader(site, server, channel, dateStr,
+                                    date.toString(QStringLiteral("yyyy")),
+                                    date.toString(QStringLiteral("MM")),
+                                    date.toString(QStringLiteral("dd")));
 
     const QString base = '/' + server.slug + '/' + channel;
     const QDate prev = store.adjacentDay(channel, date, false);
@@ -423,19 +448,34 @@ QString dayPage(const Site& site, const ServerSnapshot& server, const QString& c
 }
 
 QString searchPage(const Site& site, const ServerSnapshot& server, const QString& channel,
+                   const QString& year, const QString& month, const QString& day,
                    const QString& query, bool regexp, const SearchResult& result)
 {
-    QString content = channelHeader(site, server, channel, QStringLiteral("search"));
+    QString content = channelHeader(site, server, channel, QStringLiteral("search"), year, month, day);
+
+    // Spell the scanned subtree out, so a truncated result reads as "narrow the
+    // scope" rather than "the history is unsearchable".
+    QString scope;
+    if (!year.isEmpty()) {
+        scope = '/' + year;
+        if (!month.isEmpty()) {
+            scope += '/' + month;
+            if (!day.isEmpty()) {
+                scope += '/' + day;
+            }
+        }
+    }
 
     QString status;
     if (result.badPattern) {
         status = QStringLiteral("invalid regular expression");
     } else {
-        status = QStringLiteral("%1 match%2 for \"%3\"%4")
+        status = QStringLiteral("%1 match%2 for \"%3\"%4 in %5")
                      .arg(result.hits.size())
                      .arg(result.hits.size() == 1 ? QString() : QStringLiteral("es"),
                           esc(query),
-                          regexp ? QStringLiteral(" (regexp)") : QString());
+                          regexp ? QStringLiteral(" (regexp)") : QString(),
+                          scope.isEmpty() ? QStringLiteral("the whole channel") : esc(scope));
         if (result.truncated) {
             status += QStringLiteral(", stopped at limit");
         }

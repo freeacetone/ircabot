@@ -47,7 +47,10 @@ desperately.
 - Mobile friendly: collapsible menu and adaptive log layout, pure CSS;
 - Unlimited servers and channels, current online and topic per channel;
 - Connection status in real time (green/red dot);
-- Whole-history search, plain substring or regular expression;
+- Scoped search, plain substring or regular expression: the grep box searches
+  from wherever you are - the whole channel, a single year, month or day - so a
+  large history stays reachable instead of the hit limit being spent on recent
+  matches alone;
 - Plain text day log: append `.txt` to the day URL;
 - Messages starting with a dot are stored as "Blinded message";
 - CTCP ACTION (`/me`) is stored as `*** text ***`;

@@ -382,22 +382,22 @@ void WebUi::setupRoutes()
     m_server.route(QStringLiteral("/<arg>/<arg>/<arg>"),
                    [this](const QString& slug, const QString& channel, const QString& year,
                           const QHttpServerRequest& request) {
-        return QtConcurrent::run([this, slug, channel, year, site = siteFor(request)] {
-            return servePage(site, slug, channel, year, {}, {}, {});
+        return QtConcurrent::run([this, slug, channel, year, query = request.query(), site = siteFor(request)] {
+            return servePage(site, slug, channel, year, {}, {}, query);
         });
     });
     m_server.route(QStringLiteral("/<arg>/<arg>/<arg>/<arg>"),
                    [this](const QString& slug, const QString& channel, const QString& year, const QString& month,
                           const QHttpServerRequest& request) {
-        return QtConcurrent::run([this, slug, channel, year, month, site = siteFor(request)] {
-            return servePage(site, slug, channel, year, month, {}, {});
+        return QtConcurrent::run([this, slug, channel, year, month, query = request.query(), site = siteFor(request)] {
+            return servePage(site, slug, channel, year, month, {}, query);
         });
     });
     m_server.route(QStringLiteral("/<arg>/<arg>/<arg>/<arg>/<arg>"),
                    [this](const QString& slug, const QString& channel, const QString& year,
                           const QString& month, const QString& day, const QHttpServerRequest& request) {
-        return QtConcurrent::run([this, slug, channel, year, month, day, site = siteFor(request)] {
-            return servePage(site, slug, channel, year, month, day, {});
+        return QtConcurrent::run([this, slug, channel, year, month, day, query = request.query(), site = siteFor(request)] {
+            return servePage(site, slug, channel, year, month, day, query);
         });
     });
 
@@ -431,33 +431,42 @@ QHttpServerResponse WebUi::servePage(const render::Site& site,
     }
     const LogStore& store = *m_stores[slug];
 
-    // Search: /<server>/<channel>?toSearch=...&isRegexp=on
+    // The date segments select the day to render and also scope a search, so
+    // validate them up front: both paths feed them to the filesystem.
+    if ((!year.isEmpty() && !safeSegment(year)) || (!month.isEmpty() && !safeSegment(month))) {
+        return notFound(QStringLiteral("Bad date"));
+    }
+    QString day = dayRaw;
+    const bool plainText = day.endsWith(QStringLiteral(".txt"));
+    if (plainText) {
+        day.chop(4);
+    }
+    if (!day.isEmpty() && !safeSegment(day)) {
+        return notFound(QStringLiteral("Bad date"));
+    }
+
+    // Search: /<server>/<channel>[/yyyy[/MM[/dd]]]?toSearch=...&isRegexp=on
+    // The date path anchors the scan to where the reader is (whole channel, a
+    // year, a month or one day), so a huge chronicle stays searchable within
+    // the hit limit instead of the cap being spent on recent matches alone.
     const QString searchQuery = query.queryItemValue(QStringLiteral("toSearch"), QUrl::FullyDecoded)
                                     .replace('+', ' ')
                                     .trimmed();
     if (!searchQuery.isEmpty()) {
         const bool regexp = query.queryItemValue(QStringLiteral("isRegexp")) == QStringLiteral("on");
-        const SearchResult result = store.search(channel, searchQuery, regexp);
-        return html(render::searchPage(site, server, channel, searchQuery, regexp, result));
+        const SearchResult result = store.search(channel, searchQuery, regexp, year, month, day);
+        return html(render::searchPage(site, server, channel, year, month, day,
+                                       searchQuery, regexp, result));
     }
 
     if (year.isEmpty()) {
         return html(render::calendarPage(site, server, channel, store));
     }
-    if (!safeSegment(year) || (!month.isEmpty() && !safeSegment(month))) {
-        return notFound(QStringLiteral("Bad date"));
-    }
     if (month.isEmpty()) {
         return html(render::yearPage(site, server, channel, store, year));
     }
-    if (dayRaw.isEmpty()) {
+    if (day.isEmpty()) {
         return html(render::monthPage(site, server, channel, store, year, month));
-    }
-
-    QString day = dayRaw;
-    const bool plainText = day.endsWith(QStringLiteral(".txt"));
-    if (plainText) {
-        day.chop(4);
     }
 
     const QDate date(year.toInt(), month.toInt(), day.toInt());

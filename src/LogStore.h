@@ -85,8 +85,14 @@ public:
     QByteArray readDayRaw(const QString& channel, const QDate& date) const;
     QString aboutServerHtml() const;
 
-    // Whole-channel search, newest days first. Safe to run on a worker thread.
-    SearchResult search(const QString& channel, const QString& query, bool regexp) const;
+    // Search, newest days first. The optional year/month/day narrow the scan to
+    // that subtree of the archive, so a large history stays reachable within the
+    // hit limit instead of being buried under recent matches. An empty scope
+    // searches the whole channel. Safe to run on a worker thread.
+    SearchResult search(const QString& channel, const QString& query, bool regexp,
+                        const QString& scopeYear = QString(),
+                        const QString& scopeMonth = QString(),
+                        const QString& scopeDay = QString()) const;
 
     static LogLine parseLine(const QString& raw);
 

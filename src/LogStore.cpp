@@ -256,7 +256,9 @@ QString LogStore::aboutServerHtml() const
     return result.trimmed();
 }
 
-SearchResult LogStore::search(const QString& channel, const QString& query, bool regexp) const
+SearchResult LogStore::search(const QString& channel, const QString& query, bool regexp,
+                              const QString& scopeYear, const QString& scopeMonth,
+                              const QString& scopeDay) const
 {
     SearchResult result;
 
@@ -273,16 +275,33 @@ SearchResult LogStore::search(const QString& channel, const QString& query, bool
     QElapsedTimer clock;
     clock.start();
 
-    // Newest first: recent logs are what people search for
-    QStringList yearList = years(channel);
-    std::reverse(yearList.begin(), yearList.end());
+    // The scope pins the scan to a subtree (whole channel, one year, one month
+    // or a single day); within it, newest first, as recent logs are what people
+    // search for. A fixed level is used as is; the rest is listed and reversed.
+    QStringList yearList;
+    if (scopeYear.isEmpty()) {
+        yearList = years(channel);
+        std::reverse(yearList.begin(), yearList.end());
+    } else {
+        yearList = {scopeYear};
+    }
 
     for (const QString& y : yearList) {
-        QStringList monthList = months(channel, y);
-        std::reverse(monthList.begin(), monthList.end());
+        QStringList monthList;
+        if (scopeMonth.isEmpty()) {
+            monthList = months(channel, y);
+            std::reverse(monthList.begin(), monthList.end());
+        } else {
+            monthList = {scopeMonth};
+        }
         for (const QString& m : monthList) {
-            QStringList dayList = days(channel, y, m);
-            std::reverse(dayList.begin(), dayList.end());
+            QStringList dayList;
+            if (scopeDay.isEmpty()) {
+                dayList = days(channel, y, m);
+                std::reverse(dayList.begin(), dayList.end());
+            } else {
+                dayList = {scopeDay};
+            }
             for (const QString& d : dayList) {
                 if (clock.elapsed() > SEARCH_TIME_BUDGET_MS) {
                     result.timedOut = true;

@@ -43,6 +43,7 @@ QString monthPage(const Site& site, const ServerSnapshot& server, const QString&
 QString dayPage(const Site& site, const ServerSnapshot& server, const QString& channel,
                 const LogStore& store, const QDate& date);
 QString searchPage(const Site& site, const ServerSnapshot& server, const QString& channel,
+                   const QString& year, const QString& month, const QString& day,
                    const QString& query, bool regexp, const SearchResult& result);
 QString livePage(const Site& site, const ServerSnapshot& server, const QString& channel);
 QString errorPage(const Site& site, const QString& title, const QString& text);
