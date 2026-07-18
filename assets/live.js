@@ -26,6 +26,8 @@
     }
     var lastId = "0";
     var networkOk = true;
+    var polling = false; // a request is in flight: never overlap, or lastId
+                         // would be reused and the same messages fetched twice
     var POLL_MS = 3000;
     var MAX_LINES = 500;
 
@@ -72,10 +74,13 @@
     }
 
     function poll() {
+        if (polling) return; // previous request still in flight: skip this tick
+        polling = true;
         var request = new XMLHttpRequest();
         request.open("GET", "/~api/" + server + "/" + channel + "?after=" + lastId, true);
         request.timeout = POLL_MS * 2;
         request.onload = function () {
+            polling = false;
             var data;
             try {
                 data = JSON.parse(request.responseText);
@@ -110,6 +115,7 @@
             }
         };
         request.onerror = request.ontimeout = function () {
+            polling = false;
             networkOk = false;
             paintDots();
         };
