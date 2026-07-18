@@ -9,6 +9,7 @@
 
 #include <array>
 #include <cmath>
+#include <vector>
 
 namespace ircabot {
 
@@ -153,15 +154,39 @@ QByteArray renderCaptchaPng(const QString& text)
 {
     QRandomGenerator* const rng = QRandomGenerator::global();
 
-    constexpr int S = 6;          // pixel scale of the 5x7 font
     constexpr int GLYPH_W = 5;
     constexpr int GLYPH_H = 7;
-    constexpr int cell = GLYPH_W * S + 12;
-    constexpr int padX = 18;
-    constexpr int H = 74;
+    constexpr int padX = 16;
+    constexpr int H = 80;
 
     const int n = static_cast<int>(text.size());
-    const int W = padX * 2 + qMax(1, n) * cell;
+
+    // Per-glyph placement: a random scale, a random slant, and an advance that
+    // leaves the next glyph overlapping this one, so the characters cannot be
+    // sliced apart on a fixed grid.
+    struct Placed { int gi; int scale; int x; int y; double shear; };
+    std::vector<Placed> glyphs;
+    glyphs.reserve(n);
+    int pen = padX;
+    for (int i = 0; i < n; ++i) {
+        const int gi = glyphIndex(text.at(i));
+        if (gi < 0) {
+            continue;
+        }
+        const int scale = 5 + rng->bounded(2);              // 5..6 -> gentle size variation
+        const int gw = GLYPH_W * scale;
+        const int gh = GLYPH_H * scale;
+        const int x = pen + rng->bounded(-2, 3);
+        const int y = qBound(2, (H - gh) / 2 + rng->bounded(-3, 4), H - gh - 2);
+        const double shear = rng->bounded(-20, 21) / 100.0; // slant -0.20..0.20
+        glyphs.push_back({gi, scale, x, y, shear});
+        pen += gw + rng->bounded(4);                        // small gap, glyphs stay separate
+    }
+
+    int W = padX * 2;
+    for (const Placed& g : glyphs) {
+        W = qMax(W, g.x + GLYPH_W * g.scale + padX);
+    }
 
     QByteArray img(W * H, char(0)); // palette index 0 = background everywhere
     const auto setPx = [&](int x, int y, unsigned char idx) {
@@ -172,28 +197,21 @@ QByteArray renderCaptchaPng(const QString& text)
 
     const double freq = 0.05 + rng->bounded(30) / 1000.0;
     const double phase = rng->bounded(628) / 100.0;
-    const double amp = 3.0;
+    const double amp = 2.5;
 
-    for (int i = 0; i < n; ++i) {
-        const int gi = glyphIndex(text.at(i));
-        if (gi < 0) {
-            continue;
-        }
-        const int baseX = padX + i * cell + 4 + rng->bounded(-2, 3);
-        const int baseY = (H - GLYPH_H * S) / 2 + rng->bounded(-4, 5);
-        const double shear = rng->bounded(-30, 31) / 100.0; // slant -0.3..0.3
-        const double cy = baseY + GLYPH_H * S / 2.0;
+    for (const Placed& g : glyphs) {
+        const double cy = g.y + GLYPH_H * g.scale / 2.0;
         for (int row = 0; row < GLYPH_H; ++row) {
-            const unsigned char bits = FONT5X7[gi][row];
+            const unsigned char bits = FONT5X7[g.gi][row];
             for (int col = 0; col < GLYPH_W; ++col) {
                 if (!(bits & (1 << (4 - col)))) {
                     continue;
                 }
-                for (int sy = 0; sy < S; ++sy) {
-                    for (int sx = 0; sx < S; ++sx) {
-                        const int py0 = baseY + row * S + sy;
-                        const int px = baseX + col * S + sx + static_cast<int>(shear * (py0 - cy));
-                        const int py = py0 + static_cast<int>(amp * std::sin((baseX + col * S) * freq + phase));
+                for (int sy = 0; sy < g.scale; ++sy) {
+                    for (int sx = 0; sx < g.scale; ++sx) {
+                        const int py0 = g.y + row * g.scale + sy;
+                        const int px = g.x + col * g.scale + sx + static_cast<int>(g.shear * (py0 - cy));
+                        const int py = py0 + static_cast<int>(amp * std::sin((g.x + col * g.scale) * freq + phase));
                         setPx(px, py, 1); // ink
                     }
                 }
@@ -202,10 +220,10 @@ QByteArray renderCaptchaPng(const QString& text)
     }
 
     // Noise: dim speckles and a few crossing lines over the glyphs.
-    for (int k = 0; k < W * H / 90; ++k) {
+    for (int k = 0; k < W * H / 120; ++k) {
         setPx(rng->bounded(W), rng->bounded(H), 2);
     }
-    for (int l = 0; l < 3; ++l) {
+    for (int l = 0; l < 2; ++l) {
         int x1 = rng->bounded(W);
         int y1 = rng->bounded(H);
         const int x2 = rng->bounded(W);

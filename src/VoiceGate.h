@@ -9,6 +9,7 @@
 
 #include <QHash>
 #include <QMutex>
+#include <QSet>
 #include <QString>
 
 namespace ircabot {
@@ -61,6 +62,13 @@ public:
     bool consumeSolved(const QString& server, const QString& nick, const QString& hostHash);
     bool isVerified(const QString& server, const QString& nick, const QString& hostHash) const; // web GET
 
+    // Presence, refreshed by the IRC side each reconcile tick: the set holds
+    // "<lownick>\n<hosthash>" for users the bot currently sees with a known host.
+    // The web uses it to refuse captchas for nick+host that are not online.
+    void setPresent(const QString& server, QSet<QString> nickHostKeys);
+    bool isPresent(const QString& server, const QString& nick, const QString& hostHash) const;
+    static QString presenceKey(const QString& nick, const QString& hostHash);
+
 private:
     QString serverDir(const QString& server) const;
     QString recordDir(const QString& server, const QString& nick, const QString& host) const;
@@ -69,7 +77,8 @@ private:
     QString m_captchaBase;   // e.g. "http://example.com" (no trailing slash)
     VoiceGateConfig m_config;
     mutable QMutex m_mutex;
-    QHash<QString, qint64> m_solved; // "server\n<lownick>\n<hosthash>" -> solve time
+    QHash<QString, qint64> m_solved;          // "server\n<lownick>\n<hosthash>" -> solve time
+    QHash<QString, QSet<QString>> m_present;  // server -> present "<lownick>\n<hosthash>" keys
 };
 
 } // namespace ircabot

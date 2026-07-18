@@ -549,7 +549,7 @@ QString captchaPage(const Site& site, const QString& server, const QString& serv
                      "<input type=\"hidden\" name=\"nonce\" value=\"%4\">\n"
                      "<input class=\"captcha-input\" name=\"answer\" type=\"text\" autocomplete=\"off\" "
                      "autocapitalize=\"characters\" autocorrect=\"off\" spellcheck=\"false\" "
-                     "maxlength=\"12\" placeholder=\"enter the code\" aria-label=\"captcha answer\" autofocus>\n"
+                     "maxlength=\"12\" placeholder=\"enter the code\" aria-label=\"captcha answer\" autofocus required>\n"
                      "<button class=\"captcha-submit\" type=\"submit\">Verify</button>\n"
                      "</form>\n")
                      .arg(esc(server), esc(nick), esc(hostHash), esc(nonce));

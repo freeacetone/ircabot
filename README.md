@@ -1,7 +1,9 @@
-# IRCaBot Reborn (v3)
+# IRCaBot v3 (reborn)
 
 An undemanding IRC chat logger with a JS-free web interface.
-Complete rewrite of IRCaBot on Qt6: only the logger and the web UI, nothing else.
+A fresh take written from scratch - not an evolution of v2, whose code was a
+pile of horrors from back when I was learning to program and doing it
+desperately.
 
 ## Key points
 
@@ -117,11 +119,6 @@ ircabot --example /etc/ircabot/config.json   # then edit it
 sudo systemctl daemon-reload
 sudo systemctl enable --now ircabot.service
 ```
-
-## Releases
-
-Pushing a `v*` tag runs a GitHub Action that builds the `.deb` under Debian 13
-and attaches it to the matching GitHub Release.
 
 ## License
 

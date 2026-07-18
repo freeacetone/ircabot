@@ -48,6 +48,7 @@ private:
     QHttpServerResponse serveApi(const QString& serverSlug, const QString& channel, quint64 afterId);
     QString readMainPageText() const;
     void ensureMainPageFile() const;
+    QByteArray faviconSvg() const;
 
     QString m_dataPath;
     QString m_bindAddress;

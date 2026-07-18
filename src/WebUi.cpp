@@ -43,6 +43,24 @@ bool safeSegment(const QString& s)
     return !s.isEmpty() && !s.contains(QStringLiteral("..")) && ok.match(s).hasMatch();
 }
 
+// A captcha nick may be non-ASCII (Cyrillic, ...). It is HTML-escaped in the
+// page, hashed into the nonce and sanitized by VoiceGate for the filesystem, so
+// here it only has to be free of path/routing hazards.
+bool safeNick(const QString& s)
+{
+    if (s.isEmpty() || s.size() > 64
+        || s.contains(QLatin1Char('/')) || s.contains(QLatin1Char('\\'))
+        || s.contains(QStringLiteral(".."))) {
+        return false;
+    }
+    for (const QChar c : s) {
+        if (c.isSpace() || c.category() == QChar::Other_Control) {
+            return false;
+        }
+    }
+    return true;
+}
+
 QByteArray qrcFile(const QString& path)
 {
     QFile f(QStringLiteral(":/") + path);
@@ -187,16 +205,28 @@ render::Site WebUi::siteFor(const QHttpServerRequest& request) const
     return site;
 }
 
+// The configured service_emoji drawn as SVG text; the glyph comes from the
+// viewer's own emoji font, so nothing is fetched from the network.
+QByteArray WebUi::faviconSvg() const
+{
+    return QByteArrayLiteral(
+               "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\">"
+               "<text x=\"50\" y=\"52\" font-size=\"80\" text-anchor=\"middle\" "
+               "dominant-baseline=\"central\">")
+        + m_site.serviceEmoji.toUtf8()
+        + QByteArrayLiteral("</text></svg>");
+}
+
 void WebUi::setupRoutes()
 {
     m_server.route(QStringLiteral("/style.css"), []() {
         return cachedAsset(QByteArrayLiteral("text/css; charset=utf-8"), qrcFile(QStringLiteral("style.css")));
     });
-    m_server.route(QStringLiteral("/favicon.svg"), []() {
-        return cachedAsset(QByteArrayLiteral("image/svg+xml"), qrcFile(QStringLiteral("favicon.svg")));
+    m_server.route(QStringLiteral("/favicon.svg"), [this]() {
+        return cachedAsset(QByteArrayLiteral("image/svg+xml"), faviconSvg());
     });
-    m_server.route(QStringLiteral("/favicon.ico"), []() {
-        return cachedAsset(QByteArrayLiteral("image/svg+xml"), qrcFile(QStringLiteral("favicon.svg")));
+    m_server.route(QStringLiteral("/favicon.ico"), [this]() {
+        return cachedAsset(QByteArrayLiteral("image/svg+xml"), faviconSvg());
     });
     if (!m_site.realtimeDisabled) {
         m_server.route(QStringLiteral("/live.js"), []() {
@@ -442,7 +472,7 @@ QHttpServerResponse WebUi::serveCaptcha(const render::Site& site, const QString&
         return html(render::errorPage(site, QStringLiteral("404"), QStringLiteral("Voice gate is disabled")),
                     QHttpServerResponse::StatusCode::NotFound);
     }
-    if (!safeSegment(server) || !safeSegment(nick) || !hexHash.match(hostHash).hasMatch()) {
+    if (!safeSegment(server) || !safeNick(nick) || !hexHash.match(hostHash).hasMatch()) {
         return html(render::errorPage(site, QStringLiteral("400"), QStringLiteral("Bad request")),
                     QHttpServerResponse::StatusCode::BadRequest);
     }
@@ -463,6 +493,15 @@ QHttpServerResponse WebUi::serveCaptcha(const render::Site& site, const QString&
             site, server, serverName, nick, hostHash, QString(), QString(),
             QStringLiteral("You are already verified - you have a voice on moderated channels in ") + serverName + '.',
             true));
+    }
+
+    // Checking presence is cheaper than drawing a captcha, so do it first: refuse
+    // to issue or accept one unless this exact nick+host is online here.
+    if (!m_voiceGate->isPresent(server, nick, hostHash)) {
+        return html(render::captchaPage(
+            site, server, serverName, nick, hostHash, QString(), QString(),
+            QStringLiteral("This nick is not online on ") + serverName + QStringLiteral(" - join the channel first."),
+            false));
     }
 
     const int length = m_voiceGate->config().captchaLength;

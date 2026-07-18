@@ -228,4 +228,22 @@ bool VoiceGate::isVerified(const QString& server, const QString& nick, const QSt
     return offlineSince <= 0 || nowSec() - offlineSince <= ttl;
 }
 
+QString VoiceGate::presenceKey(const QString& nick, const QString& hostHash)
+{
+    return nick.toLower() + '\n' + hostHash;
+}
+
+void VoiceGate::setPresent(const QString& server, QSet<QString> nickHostKeys)
+{
+    const QMutexLocker locker(&m_mutex);
+    m_present[server] = nickHostKeys;
+}
+
+bool VoiceGate::isPresent(const QString& server, const QString& nick, const QString& hostHash) const
+{
+    const QMutexLocker locker(&m_mutex);
+    const auto it = m_present.constFind(server);
+    return it != m_present.constEnd() && it->contains(presenceKey(nick, hostHash));
+}
+
 } // namespace ircabot

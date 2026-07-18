@@ -694,6 +694,20 @@ void IrcClient::onVoiceGateTick()
         m_lastSweep = now;
     }
 
+    // Publish present users (with a known host) so the web can refuse captchas
+    // for a nick+host that is not actually online.
+    QSet<QString> present;
+    for (auto it = m_online.constBegin(); it != m_online.constEnd(); ++it) {
+        for (const QString& entry : it.value()) {
+            const QString nick = util::stripNickPrefix(entry);
+            const QString host = m_userHost.value(nick.toLower());
+            if (!host.isEmpty()) {
+                present.insert(VoiceGate::presenceKey(nick, VoiceGate::hostHash(host)));
+            }
+        }
+    }
+    m_voiceGate->setPresent(m_config.slug, present);
+
     const qint64 delayMs = static_cast<qint64>(m_voiceGate->config().connectDelaySeconds) * 1000;
     const QString me = currentNick();
 
