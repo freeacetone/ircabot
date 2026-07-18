@@ -65,6 +65,8 @@ IrcClient::IrcClient(const ServerConfig& config, RuntimeState* state, LogStore* 
     connect(&m_nickRecoverTimer, &QTimer::timeout, this, &IrcClient::onNickRecover);
     connect(&m_joinTimer, &QTimer::timeout, this, &IrcClient::onEnsureJoined);
     connect(&m_voiceGateTimer, &QTimer::timeout, this, &IrcClient::onVoiceGateTick);
+    m_sendTimer.setSingleShot(true);
+    connect(&m_sendTimer, &QTimer::timeout, this, &IrcClient::onSendQueue);
 
     m_state->registerServer(m_config.displayName, m_config.slug, m_config.channels);
     m_state->setBotNick(m_config.slug, m_config.nick);
@@ -109,6 +111,11 @@ void IrcClient::start()
     m_setModerated.clear();
     m_pendingSince.clear();
     m_lastWho.clear();
+    m_lastPmReply.clear();
+    m_sendQueue.clear();
+    m_sendTimer.stop();
+    m_sendTokens = SEND_BURST;
+    m_lastSendRefill = 0;
 
     connect(m_socket, &QSslSocket::connected, this, &IrcClient::onConnected);
     connect(m_socket, &QSslSocket::disconnected, this, &IrcClient::onDisconnected);
@@ -151,6 +158,7 @@ void IrcClient::onDisconnected()
     m_nickRecoverTimer.stop();
     m_joinTimer.stop();
     m_voiceGateTimer.stop();
+    m_sendTimer.stop();
     m_registered = false;
     m_state->setConnected(m_config.slug, false);
 
@@ -194,7 +202,7 @@ void IrcClient::onWatchdog()
         m_socket->abort();
         onDisconnected();
     } else if (silence > KEEPALIVE_SILENCE_MS && !m_keepAliveSent && m_registered) {
-        send("PING :keepalive", false);
+        sendNow("PING :keepalive", false);
         m_keepAliveSent = true;
     }
 }
@@ -219,7 +227,7 @@ QString IrcClient::currentNick() const
     return m_altNick.isEmpty() ? m_config.nick : m_altNick;
 }
 
-void IrcClient::send(const QString& line, bool log)
+void IrcClient::sendRaw(const QString& line, bool log)
 {
     if (!m_socket || m_socket->state() != QAbstractSocket::ConnectedState) {
         return;
@@ -228,6 +236,41 @@ void IrcClient::send(const QString& line, bool log)
         consoleLog("<- " + line);
     }
     m_socket->write(line.toUtf8() + "\r\n");
+}
+
+// PONG and the keepalive PING must not wait behind the queue, or the server
+// could time us out while a burst drains.
+void IrcClient::sendNow(const QString& line, bool log)
+{
+    sendRaw(line, log);
+}
+
+void IrcClient::send(const QString& line, bool log)
+{
+    m_sendQueue.enqueue({line, log});
+    onSendQueue();
+}
+
+// Token bucket: an initial burst of SEND_BURST, then one message per
+// SEND_INTERVAL_MS, so a mass join/who/mode/+v/PM never trips excess flood.
+void IrcClient::onSendQueue()
+{
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (m_lastSendRefill == 0) {
+        m_lastSendRefill = now;
+    }
+    m_sendTokens = qMin<double>(SEND_BURST,
+                                m_sendTokens + double(now - m_lastSendRefill) / SEND_INTERVAL_MS);
+    m_lastSendRefill = now;
+
+    while (!m_sendQueue.isEmpty() && m_sendTokens >= 1.0) {
+        const OutMsg m = m_sendQueue.dequeue();
+        sendRaw(m.line, m.log);
+        m_sendTokens -= 1.0;
+    }
+    if (!m_sendQueue.isEmpty()) {
+        m_sendTimer.start(SEND_INTERVAL_MS);
+    }
 }
 
 IrcClient::IrcMessage IrcClient::parseLine(const QString& line)
@@ -301,7 +344,7 @@ void IrcClient::processLine(const QString& line)
     const IrcMessage msg = parseLine(line);
 
     if (msg.command == QStringLiteral("PING")) {
-        send("PONG :" + (msg.trailing.isEmpty() ? (msg.params.isEmpty() ? QString() : msg.params.first())
+        sendNow("PONG :" + (msg.trailing.isEmpty() ? (msg.params.isEmpty() ? QString() : msg.params.first())
                                                 : msg.trailing), false);
         return;
     }
@@ -525,7 +568,8 @@ void IrcClient::handlePrivmsg(const IrcMessage& msg)
     }
     const QString target = msg.params.first();
     if (!target.startsWith('#')) {
-        return; // private message to the bot is not logged
+        handlePrivateQuery(msg.prefixNick, msg.prefixHost); // PM to the bot: captcha reply
+        return;
     }
 
     QString channel = target;
@@ -667,6 +711,29 @@ void IrcClient::sendCaptchaPm(const QString& nick, const QString& host)
     const QString body = text.isEmpty() ? url : text + ' ' + url;
     send("PRIVMSG " + nick + " :" + body);
     consoleLog("Voice gate: sent captcha link to " + nick);
+}
+
+// A PM to the bot: answer only when the gate is on. Already-voiced (in our DB)
+// gets a confirmation, everyone else gets their captcha link. Throttled per
+// sender so a flood of PMs cannot turn into a flood of replies.
+void IrcClient::handlePrivateQuery(const QString& nick, const QString& host)
+{
+    if (!voiceGateActive() || nick.isEmpty() || host.isEmpty()) {
+        return;
+    }
+    const QString key = nick.toLower();
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (now - m_lastPmReply.value(key, 0) < PM_REPLY_COOLDOWN_MS) {
+        return;
+    }
+    m_lastPmReply.insert(key, now);
+
+    if (m_voiceGate->isGranted(m_config.slug, nick, host)) {
+        send("PRIVMSG " + nick
+             + " :You have already passed the captcha and have a voice on the channels I moderate.");
+    } else {
+        sendCaptchaPm(nick, host);
+    }
 }
 
 void IrcClient::userWentOffline(const QString& nick)
