@@ -16,6 +16,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMimeDatabase>
+#include <QMutex>
 #include <QRegularExpression>
 #include <QTcpServer>
 #include <QtConcurrent>
@@ -61,11 +62,20 @@ bool safeNick(const QString& s)
     return true;
 }
 
+// The style sheet and live.js live in the binary's Qt resources; read each one
+// once and keep the bytes, so repeated requests never touch the resource FS.
 QByteArray qrcFile(const QString& path)
 {
+    static QMutex mutex;
+    static QHash<QString, QByteArray> cache;
+    const QMutexLocker locker(&mutex);
+    const auto it = cache.constFind(path);
+    if (it != cache.constEnd()) {
+        return *it;
+    }
     QFile f(QStringLiteral(":/") + path);
     f.open(QIODevice::ReadOnly);
-    return f.readAll();
+    return *cache.insert(path, f.readAll());
 }
 
 QHttpServerResponse html(const QString& body,
@@ -182,8 +192,15 @@ void WebUi::ensureMainPageFile() const
 
 QString WebUi::readMainPageText() const
 {
+    {
+        const QReadLocker readLock(&m_cacheLock);
+        if (m_mainPageCached) {
+            return m_mainPageCache;
+        }
+    }
     QFile f(m_dataPath + QStringLiteral("_ircabot/web/main_page.txt"));
     if (!f.open(QIODevice::ReadOnly)) {
+        // Do not cache the error: a permission hiccup should be able to recover.
         return QStringLiteral("main_page.txt is not readable");
     }
     QString result;
@@ -194,7 +211,49 @@ QString WebUi::readMainPageText() const
         }
         result += line;
     }
-    return result;
+    const QWriteLocker writeLock(&m_cacheLock);
+    m_mainPageCache = result;
+    m_mainPageCached = true;
+    return m_mainPageCache;
+}
+
+// about_server.txt is optional; an empty result (no file) is cached too, so the
+// per-server page never keeps re-opening a file that is not there.
+QString WebUi::cachedAboutHtml(const QString& slug) const
+{
+    {
+        const QReadLocker readLock(&m_cacheLock);
+        const auto it = m_aboutCache.constFind(slug);
+        if (it != m_aboutCache.constEnd()) {
+            return *it;
+        }
+    }
+    const std::shared_ptr<LogStore> store = m_stores.value(slug);
+    const QString htmlText = store ? store->aboutServerHtml() : QString();
+    const QWriteLocker writeLock(&m_cacheLock);
+    return *m_aboutCache.insert(slug, htmlText);
+}
+
+// Only successful reads are cached: a missing image stays a live 404 so that a
+// newly added file is picked up without a restart (editing one still needs it).
+std::optional<WebUi::CachedImage> WebUi::cachedImage(const QString& name) const
+{
+    {
+        const QReadLocker readLock(&m_cacheLock);
+        const auto it = m_imageCache.constFind(name);
+        if (it != m_imageCache.constEnd()) {
+            return *it;
+        }
+    }
+    QFile f(m_dataPath + QStringLiteral("_ircabot/web/images/") + name);
+    if (!f.open(QIODevice::ReadOnly)) {
+        return std::nullopt;
+    }
+    CachedImage image;
+    image.mime = QMimeDatabase().mimeTypeForFile(QFileInfo(f)).name().toUtf8();
+    image.data = f.readAll();
+    const QWriteLocker writeLock(&m_cacheLock);
+    return *m_imageCache.insert(name, image);
 }
 
 render::Site WebUi::siteFor(const QHttpServerRequest& request) const
@@ -266,13 +325,12 @@ void WebUi::setupRoutes()
                 return html(render::errorPage(site, QStringLiteral("403"), QStringLiteral("Forbidden")),
                             QHttpServerResponse::StatusCode::Forbidden);
             }
-            QFile f(m_dataPath + QStringLiteral("_ircabot/web/images/") + name);
-            if (!f.open(QIODevice::ReadOnly)) {
+            const std::optional<CachedImage> image = cachedImage(name);
+            if (!image) {
                 return html(render::errorPage(site, QStringLiteral("404"), QStringLiteral("Image not found")),
                             QHttpServerResponse::StatusCode::NotFound);
             }
-            const QByteArray mime = QMimeDatabase().mimeTypeForFile(QFileInfo(f)).name().toUtf8();
-            return cachedAsset(mime, f.readAll());
+            return cachedAsset(image->mime, image->data);
         });
     });
 
@@ -310,7 +368,7 @@ void WebUi::setupRoutes()
                 return html(render::errorPage(site, QStringLiteral("404"), QStringLiteral("No such server: ") + slug),
                             QHttpServerResponse::StatusCode::NotFound);
             }
-            return html(render::aboutPage(site, server, m_stores[slug]->aboutServerHtml()));
+            return html(render::aboutPage(site, server, cachedAboutHtml(slug)));
         });
     });
 

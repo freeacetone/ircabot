@@ -62,9 +62,10 @@ desperately.
   kept. The bot announces the mode with `/me Voice gate mode activated`;
 - Customizable pages: `data/_ircabot/web/main_page.txt` (with `%LOCAL_TIME%`
   and `%DAILY_REQUESTS%` placeholders) and a per-server page
-  `data/<server>/about_server.txt` - plain HTML, edited on disk, no rebuild
-  or restart needed. Custom images go to `data/_ircabot/web/images/` and are
-  served via `/~images/<name>`.
+  `data/<server>/about_server.txt` - plain HTML, edited on disk. Custom images
+  go to `data/_ircabot/web/images/` and are served via `/~images/<name>`. All of
+  these (and the config) are read once and kept in RAM for the whole runtime, so
+  the disk is never touched per request; applying an edit needs a restart.
 
 ## Build
 

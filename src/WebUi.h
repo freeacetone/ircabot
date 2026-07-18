@@ -14,9 +14,11 @@
 #include <QHash>
 #include <QHttpServer>
 #include <QObject>
+#include <QReadWriteLock>
 #include <QUrlQuery>
 
 #include <memory>
+#include <optional>
 
 namespace ircabot {
 
@@ -36,6 +38,8 @@ public:
     bool listen();
 
 private:
+    struct CachedImage { QByteArray mime; QByteArray data; };
+
     void setupRoutes();
     render::Site siteFor(const QHttpServerRequest& request) const;
     QHttpServerResponse serveCaptcha(const render::Site& site, const QString& server,
@@ -46,7 +50,9 @@ private:
                                   const QString& year, const QString& month, const QString& day,
                                   const QUrlQuery& query);
     QHttpServerResponse serveApi(const QString& serverSlug, const QString& channel, quint64 afterId);
-    QString readMainPageText() const;
+    QString readMainPageText() const;                              // main_page.txt, cached
+    QString cachedAboutHtml(const QString& slug) const;            // about_server.txt, cached
+    std::optional<CachedImage> cachedImage(const QString& name) const; // /~images, cached
     void ensureMainPageFile() const;
     QByteArray faviconSvg() const;
 
@@ -59,6 +65,15 @@ private:
     VoiceGate* m_voiceGate;
     Captcha m_captcha;
     QHttpServer m_server;
+
+    // Custom pages and images are read once and then pinned in RAM for the
+    // whole runtime; changing them on disk requires a restart. Read from HTTP
+    // worker threads, so guarded by a lock (write-once, then read-only).
+    mutable QReadWriteLock m_cacheLock;
+    mutable bool m_mainPageCached = false;
+    mutable QString m_mainPageCache;
+    mutable QHash<QString, QString> m_aboutCache;      // slug -> about_server.txt html
+    mutable QHash<QString, CachedImage> m_imageCache;  // image name -> bytes + mime
 };
 
 } // namespace ircabot
