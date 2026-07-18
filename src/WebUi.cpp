@@ -150,8 +150,9 @@ bool WebUi::listen()
 
 void WebUi::ensureMainPageFile() const
 {
-    const QString path = m_dataPath + QStringLiteral("main_page.txt");
+    const QString path = m_dataPath + QStringLiteral("_ircabot/web/main_page.txt");
     if (!QFile::exists(path)) {
+        QDir().mkpath(m_dataPath + QStringLiteral("_ircabot/web"));
         QFile f(path);
         if (f.open(QIODevice::WriteOnly)) {
             f.write(DEFAULT_MAIN_PAGE);
@@ -163,7 +164,7 @@ void WebUi::ensureMainPageFile() const
 
 QString WebUi::readMainPageText() const
 {
-    QFile f(m_dataPath + QStringLiteral("main_page.txt"));
+    QFile f(m_dataPath + QStringLiteral("_ircabot/web/main_page.txt"));
     if (!f.open(QIODevice::ReadOnly)) {
         return QStringLiteral("main_page.txt is not readable");
     }
@@ -235,7 +236,7 @@ void WebUi::setupRoutes()
                 return html(render::errorPage(site, QStringLiteral("403"), QStringLiteral("Forbidden")),
                             QHttpServerResponse::StatusCode::Forbidden);
             }
-            QFile f(m_dataPath + QStringLiteral("custom_images/") + name);
+            QFile f(m_dataPath + QStringLiteral("_ircabot/web/images/") + name);
             if (!f.open(QIODevice::ReadOnly)) {
                 return html(render::errorPage(site, QStringLiteral("404"), QStringLiteral("Image not found")),
                             QHttpServerResponse::StatusCode::NotFound);

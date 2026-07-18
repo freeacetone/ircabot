@@ -214,6 +214,11 @@ void Config::parse(const QByteArray& raw)
                         .toStdString());
             }
         }
+        if (srv.slug == QStringLiteral("_ircabot")) {
+            throw std::runtime_error(
+                ("Server name '" + srv.displayName
+                 + "' is reserved: '_ircabot' is IRCaBot's own data directory").toStdString());
+        }
 
         srv.address = s.value(QStringLiteral("address")).toString();
         if (srv.address.isEmpty()) {

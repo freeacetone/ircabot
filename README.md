@@ -58,11 +58,11 @@ Complete rewrite of IRCaBot on Qt6: only the logger and the web UI, nothing else
   `offline_ttl_hours` offline. The captcha is stateless - the challenge lives in
   an AES-256 encrypted, signed nonce in the form, so no challenge database is
   kept. The bot announces the mode with `/me Voice gate mode activated`;
-- Customizable pages: `main_page.txt` (with `%LOCAL_TIME%` and
-  `%DAILY_REQUESTS%` placeholders) and a per-server page
+- Customizable pages: `data/_ircabot/web/main_page.txt` (with `%LOCAL_TIME%`
+  and `%DAILY_REQUESTS%` placeholders) and a per-server page
   `data/<server>/about_server.txt` - plain HTML, edited on disk, no rebuild
-  or restart needed. Custom images go to `data/custom_images/` and are served
-  via `/~images/<name>`.
+  or restart needed. Custom images go to `data/_ircabot/web/images/` and are
+  served via `/~images/<name>`.
 
 ## Build
 

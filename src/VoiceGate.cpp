@@ -46,7 +46,7 @@ void writeNum(const QString& file, qint64 value)
 } // namespace
 
 VoiceGate::VoiceGate(const QString& dataPath, const VoiceGateConfig& config, const QString& captchaBaseUrl)
-    : m_root(dataPath + QStringLiteral("_voicegate/")),
+    : m_root(dataPath + QStringLiteral("_ircabot/voicegate/")),
       m_captchaBase(captchaBaseUrl),
       m_config(config)
 {

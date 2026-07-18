@@ -529,7 +529,8 @@ QString captchaPage(const Site& site, const QString& server, const QString& serv
         // Solved / already-verified: only the positive result, no challenge copy.
         modal += QStringLiteral("<p class=\"captcha-note %1\">%2</p>\n")
                      .arg(success ? QStringLiteral("ok") : QStringLiteral("err"), esc(message));
-        modal += QStringLiteral("<p class=\"captcha-foot\"><a href=\"/\">[back to logs]</a></p>\n");
+        modal += QStringLiteral("<p class=\"captcha-foot\"><a href=\"/%1\">[back to logs]</a></p>\n")
+                     .arg(esc(server));
     } else {
         modal += QStringLiteral("<p class=\"captcha-sub\">Prove you are human, <b>%1</b>, to be voiced "
                                 "on moderated channels in <b>%2</b>.</p>\n")
