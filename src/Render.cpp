@@ -114,7 +114,8 @@ QString page(const Site& site, const PageRef& ref, const QString& title,
 
 QString channelHeader(const Site& site, const ServerSnapshot& server, const QString& channel,
                       const QString& subtitle, const QString& year = QString(),
-                      const QString& month = QString(), const QString& day = QString())
+                      const QString& month = QString(), const QString& day = QString(),
+                      const QString& from = QString())
 {
     const ChannelSnapshot chan = site.state->channelSnapshot(server.slug, channel);
 
@@ -152,16 +153,22 @@ QString channelHeader(const Site& site, const ServerSnapshot& server, const QStr
     const QString placeholder = (scope.isEmpty() ? QStringLiteral("/ of") : scope)
                                 + QStringLiteral(" #") + channel;
 
+    // Carry where the reader stands now, so the search page can offer a "back to
+    // log" that returns here. On a reading page that is the current path; on the
+    // search page itself the origin is threaded through unchanged.
+    const QString origin = from.isEmpty() ? site.path : from;
+
     // Grep button on the right, stretched to the width of the regexp checkbox below it.
     html += QStringLiteral(
         "<form class=\"search\" method=\"get\" action=\"%1\">\n"
-        "<input class=\"search-input\" type=\"search\" name=\"toSearch\" placeholder=\"%2\">\n"
+        "<input type=\"hidden\" name=\"from\" value=\"%2\">\n"
+        "<input class=\"search-input\" type=\"search\" name=\"toSearch\" placeholder=\"%3\">\n"
         "<div class=\"search-side\">\n"
         "<button class=\"search-btn\" type=\"submit\">grep</button>\n"
         "<label class=\"search-rgx\"><input type=\"checkbox\" name=\"isRegexp\" value=\"on\"> regexp</label>\n"
         "</div>\n"
         "</form>\n")
-                .arg(action, esc(placeholder));
+                .arg(action, esc(origin), esc(placeholder));
 
     if (!chan.online.isEmpty()) {
         html += QStringLiteral("<details class=\"online\"><summary>online: %1</summary><div class=\"online-list\">\n")
@@ -451,10 +458,59 @@ QString dayPage(const Site& site, const ServerSnapshot& server, const QString& c
 }
 
 QString searchPage(const Site& site, const ServerSnapshot& server, const QString& channel,
-                   const QString& year, const QString& month, const QString& day,
-                   const QString& query, bool regexp, const SearchResult& result)
+                   const LogStore& store, const QString& year, const QString& month,
+                   const QString& day, const QString& query, bool regexp,
+                   const QString& from, const SearchResult& result)
 {
-    QString content = channelHeader(site, server, channel, QStringLiteral("search"), year, month, day);
+    QString content = channelHeader(site, server, channel, QStringLiteral("search"),
+                                    year, month, day, from);
+
+    const QString base = '/' + server.slug + '/' + channel;
+
+    // Scoped-search navigation. Every date link keeps the query, the regexp flag
+    // and the origin page, so drilling through years/months/days never drops the
+    // search or the way back to normal reading.
+    const QString encQuery = QString::fromUtf8(QUrl::toPercentEncoding(query));
+    const QString encFrom = from.isEmpty() ? QString()
+                                           : QString::fromUtf8(QUrl::toPercentEncoding(from));
+    const auto searchUrl = [&](const QString& scopeSuffix) {
+        QString url = base;
+        if (!scopeSuffix.isEmpty()) {
+            url += '/' + scopeSuffix;
+        }
+        url += QStringLiteral("?toSearch=%1").arg(encQuery);
+        if (regexp) {
+            url += QStringLiteral("&isRegexp=on");
+        }
+        if (!encFrom.isEmpty()) {
+            url += QStringLiteral("&from=%1").arg(encFrom);
+        }
+        return url;
+    };
+
+    // Controls row: leave search (back to the reading page, or the channel root
+    // when the origin is unknown) and climb one scope level up. Stays above the
+    // status line; the narrowing date picker goes below it (see further down).
+    QString controls = QStringLiteral("<div class=\"search-nav-row controls\">\n");
+    controls += QStringLiteral("<a class=\"daynav-link\" href=\"%1\">&larr; back to log</a>\n")
+                    .arg(esc(from.isEmpty() ? base : from));
+    if (!year.isEmpty()) {
+        QString upSuffix;
+        QString upLabel;
+        if (!day.isEmpty()) {
+            upSuffix = year + '/' + month;
+            upLabel = '/' + year + '/' + month;
+        } else if (!month.isEmpty()) {
+            upSuffix = year;
+            upLabel = '/' + year;
+        } else {
+            upLabel = QStringLiteral("all");
+        }
+        controls += QStringLiteral("<a class=\"daynav-link\" href=\"%1\">&uarr; %2</a>\n")
+                        .arg(searchUrl(upSuffix), esc(upLabel));
+    }
+    controls += QStringLiteral("</div>\n");
+    content += controls;
 
     // Spell the scanned subtree out, so a truncated result reads as "narrow the
     // scope" rather than "the history is unsearchable".
@@ -488,9 +544,40 @@ QString searchPage(const Site& site, const ServerSnapshot& server, const QString
     }
     content += QStringLiteral("<div class=\"search-status\">%1</div>\n").arg(status);
 
+    // Narrowing date picker, right under the status so the reader first sees
+    // "N matches ... in /2024/08", then the dates offered within that scope -
+    // making it plain which month/year the narrower dates belong to. Only when
+    // this scope has hits: a narrower scope is a subset and would be just as empty.
+    if (!result.hits.isEmpty()) {
+        QStringList picks;
+        QString pickLabel;
+        if (year.isEmpty()) {
+            pickLabel = QStringLiteral("year");
+            for (const QString& y : store.years(channel)) {
+                picks += QStringLiteral("<a class=\"date-chip\" href=\"%1\">%2</a>").arg(searchUrl(y), esc(y));
+            }
+        } else if (month.isEmpty()) {
+            pickLabel = QStringLiteral("month");
+            for (const QString& m : store.months(channel, year)) {
+                picks += QStringLiteral("<a class=\"date-chip\" href=\"%1\">%2</a>")
+                             .arg(searchUrl(year + '/' + m), monthName(m));
+            }
+        } else if (day.isEmpty()) {
+            pickLabel = QStringLiteral("day");
+            for (const QString& d : store.days(channel, year, month)) {
+                picks += QStringLiteral("<a class=\"date-chip\" href=\"%1\">%2</a>")
+                             .arg(searchUrl(year + '/' + month + '/' + d), esc(d));
+            }
+        }
+        if (!picks.isEmpty()) {
+            content += QStringLiteral("<div class=\"search-nav-row picker\">"
+                                      "<span class=\"daynav-label\">search a %1:</span>\n%2\n</div>\n")
+                           .arg(pickLabel, picks.join('\n'));
+        }
+    }
+
     QDate currentDate;
     bool sectionOpen = false;
-    const QString base = '/' + server.slug + '/' + channel;
     for (const SearchHit& hit : result.hits) {
         if (hit.date != currentDate) {
             if (sectionOpen) {

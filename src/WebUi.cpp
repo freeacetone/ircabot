@@ -44,6 +44,17 @@ bool safeSegment(const QString& s)
     return !s.isEmpty() && !s.contains(QStringLiteral("..")) && ok.match(s).hasMatch();
 }
 
+// A user-supplied "return here" path (theme back, search origin) is usable only
+// if it is a local absolute path: it must start with '/' but not "//" or "/\".
+// Browsers fold '\' to '/', so both of those resolve to a scheme-relative URL -
+// an open redirect / off-site jump when used as a link or Location header.
+bool isLocalPath(const QString& path)
+{
+    return path.startsWith('/')
+        && !path.startsWith(QStringLiteral("//"))
+        && !path.startsWith(QStringLiteral("/\\"));
+}
+
 // A captcha nick may be non-ASCII (Cyrillic, ...). It is HTML-escaped in the
 // page, hashed into the nonce and sanitized by VoiceGate for the filesystem, so
 // here it only has to be free of path/routing hazards.
@@ -113,12 +124,7 @@ QString themeFromRequest(const QHttpServerRequest& request)
 QHttpServerResponse themeRedirect(const QString& mode, const QUrlQuery& query)
 {
     const QString back = query.queryItemValue(QStringLiteral("back"), QUrl::FullyDecoded);
-    // Must be a local absolute path. Reject "//host" and "/\host": browsers
-    // normalise '\' to '/', so both resolve to a scheme-relative URL (open redirect).
-    const bool backIsLocal = back.startsWith('/')
-        && !back.startsWith(QStringLiteral("//"))
-        && !back.startsWith(QStringLiteral("/\\"));
-    const QByteArray location = backIsLocal ? back.toUtf8() : QByteArrayLiteral("/");
+    const QByteArray location = isLocalPath(back) ? back.toUtf8() : QByteArrayLiteral("/");
 
     QByteArray cookie(THEME_COOKIE);
     if (mode == QStringLiteral("dark") || mode == QStringLiteral("light")) {
@@ -458,9 +464,15 @@ QHttpServerResponse WebUi::servePage(const render::Site& site,
                                     .trimmed();
     if (!searchQuery.isEmpty()) {
         const bool regexp = query.queryItemValue(QStringLiteral("isRegexp")) == QStringLiteral("on");
+        // Where "back to log" returns: the page the reader searched from. Reject
+        // anything that is not a local path, so it cannot become an off-site jump.
+        QString from = query.queryItemValue(QStringLiteral("from"), QUrl::FullyDecoded);
+        if (!isLocalPath(from)) {
+            from.clear();
+        }
         const SearchResult result = store.search(channel, searchQuery, regexp, year, month, day);
-        return html(render::searchPage(site, server, channel, year, month, day,
-                                       searchQuery, regexp, result));
+        return html(render::searchPage(site, server, channel, store, year, month, day,
+                                       searchQuery, regexp, from, result));
     }
 
     if (year.isEmpty()) {

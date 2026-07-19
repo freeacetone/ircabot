@@ -405,6 +405,42 @@ body { overflow: hidden; } /* the page itself never scrolls */
     margin: 14px 0;
 }
 
+/* Scoped-search navigation rows: a control row (back / up) above the match
+   count, and a dense strip of date chips below it for narrowing the search. */
+.search-nav-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.search-nav-row.controls { margin: 12px 0; }
+.search-nav-row.picker { gap: 5px; margin: 2px 0 14px; } /* chips pack tighter, right under the status */
+
+/* Leading caption for the date picker ("search a month:") */
+.daynav-label { color: var(--ink-faint); font-size: 12px; margin-right: 1px; }
+
+/* Compact date pills for narrowing the search to a year / month / day. Recessed
+   (bg-deep) so a run of them reads as one keypad; digits kept on tabular width. */
+.date-chip {
+    border: 1px solid var(--panel-edge);
+    border-radius: 3px;
+    padding: 1px 9px;
+    font-size: 12px;
+    color: var(--amber-soft);
+    background: var(--bg-deep);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    transition: color 0.12s ease, border-color 0.12s ease,
+                background 0.12s ease, box-shadow 0.12s ease;
+}
+.date-chip:hover {
+    color: var(--amber-bright);
+    border-color: var(--amber-soft);
+    background: var(--tint-amber);
+    box-shadow: 0 0 8px var(--glow-amber);
+    text-decoration: none;
+}
+
 .daynav-link {
     border: 1px solid var(--panel-edge);
     border-radius: 3px;
@@ -679,6 +715,8 @@ body { overflow: hidden; } /* the page itself never scrolls */
     .search-input { width: auto; flex: 1 1 auto; }
     .search-input:focus { width: auto; }
     .daynav-link { padding: 5px 12px; } /* bigger touch targets */
+    .date-chip { padding: 4px 11px; }   /* bigger touch targets */
+    .search-nav-row.picker { gap: 7px; }
     .arch-row { padding: 9px 14px; }
     .online-list { gap: 8px 16px; }
 
