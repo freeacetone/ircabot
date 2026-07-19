@@ -514,7 +514,14 @@ body { overflow: hidden; } /* the page itself never scrolls */
     color: hsl(var(--h, 30), var(--nick-sat), var(--nick-light));
 }
 .nick { font-weight: 700; white-space: nowrap; }
+/* The nick marker is split in two so the screen and the clipboard differ:
+   - the visible "> " prompt is a ::after, which browsers never put on the
+     clipboard, so it is shown but never copied;
+   - a real, but invisible, ": " span is copied instead. font-size: 0 hides it
+     and collapses its width (no visible colon, no gap), while white-space: pre
+     keeps its space from being trimmed, so a copied line reads "nick: message". */
 .nick::after { content: " >"; color: var(--ink-faint); font-weight: 400; }
+.nick-sep { font-size: 0; white-space: pre; }
 
 .msg { min-width: 0; }
 

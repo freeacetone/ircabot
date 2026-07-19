@@ -242,7 +242,7 @@ QString logLineHtml(int number, const QString& nick, const QString& text)
     return QStringLiteral(
         "<div class=\"line\" id=\"%1\">"
         "<a class=\"ln\" href=\"#%1\">%2</a>"
-        "<span class=\"nick\" style=\"--h:%3\">%4</span>"
+        "<span class=\"nick\" style=\"--h:%3\">%4<span class=\"nick-sep\">: </span></span>"
         "<span class=\"msg\">%5</span>"
         "</div>\n")
         .arg(anchor, QString::number(number), QString::number(util::nickHue(nick)), esc(nick), body);
@@ -595,7 +595,7 @@ QString searchPage(const Site& site, const ServerSnapshot& server, const QString
         content += QStringLiteral(
             "<div class=\"line\">"
             "<a class=\"ln\" href=\"%1\">%2</a>"
-            "<span class=\"nick\" style=\"--h:%3\">%4</span>"
+            "<span class=\"nick\" style=\"--h:%3\">%4<span class=\"nick-sep\">: </span></span>"
             "<span class=\"msg\">%5</span>"
             "</div>\n")
                        .arg(lineUrl, QString::number(hit.lineNumber),

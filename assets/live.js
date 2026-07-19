@@ -60,6 +60,12 @@
         nick.className = "nick";
         nick.style.setProperty("--h", msg.hue); // theme decides the rest
         nick.textContent = msg.nick;
+        // Real ": " (copyable, matching the archive) so a copied line reads
+        // "nick: message" instead of the nick glued to the first word.
+        var nickSep = document.createElement("span");
+        nickSep.className = "nick-sep";
+        nickSep.textContent = ": ";
+        nick.appendChild(nickSep);
 
         var text = document.createElement("span");
         text.className = "msg";
