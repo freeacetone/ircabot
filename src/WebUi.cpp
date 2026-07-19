@@ -509,8 +509,7 @@ QHttpServerResponse WebUi::serveApi(const QString& slug, const QString& channel,
     bool found = false;
     const ServerSnapshot server = m_state->snapshot(slug, &found);
     if (!found || !server.channels.contains(channel)) {
-        return QHttpServerResponse(QJsonObject{{QStringLiteral("ok"), false}},
-                                   QHttpServerResponse::StatusCode::NotFound);
+        return QHttpServerResponse(QJsonObject{}, QHttpServerResponse::StatusCode::NotFound);
     }
 
     const ChannelSnapshot chan = m_state->channelSnapshot(slug, channel);
@@ -534,9 +533,8 @@ QHttpServerResponse WebUi::serveApi(const QString& slug, const QString& channel,
     }
 
     return QHttpServerResponse(QJsonObject{
-        {QStringLiteral("ok"), true},
         {QStringLiteral("connected"), server.connected},
-        {QStringLiteral("last"), QString::number(last)},
+        {QStringLiteral("last"), static_cast<qint64>(last)},
         {QStringLiteral("topic"), chan.topic},
         {QStringLiteral("online"), onlineJson},
         {QStringLiteral("messages"), messagesJson},

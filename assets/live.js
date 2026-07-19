@@ -24,7 +24,19 @@
             }
         } catch (e) { /* keep the fallback */ }
     }
-    var lastId = "0";
+
+    // The sidebar server dot is rendered once at page load; keep this server's
+    // dot in sync with the bot's live IRC connection while we poll.
+    var serverDot = null;
+    var serverLinks = document.querySelectorAll(".side-server-name");
+    for (var s = 0; s < serverLinks.length; s++) {
+        if (serverLinks[s].getAttribute("href") === "/" + server) {
+            serverDot = serverLinks[s].querySelector(".dot");
+            break;
+        }
+    }
+
+    var lastId = 0;
     var networkOk = true;
     var polling = false; // a request is in flight: never overlap, or lastId
                          // would be reused and the same messages fetched twice
@@ -102,14 +114,14 @@
                 paintDots();
                 return;
             }
-            if (!data.ok) {
-                networkOk = false;
-                paintDots();
-                return;
-            }
-            // Network is fine; red dots also when the bot lost its IRC server
-            networkOk = data.connected;
+            // A valid answer means the network works; the dots go red only when
+            // there is no answer at all. The bot's IRC connection state is shown
+            // by the server dot in the sidebar, which we refresh here.
+            networkOk = true;
             paintDots();
+            if (serverDot && typeof data.connected === "boolean") {
+                serverDot.className = data.connected ? "dot on" : "dot off";
+            }
 
             // Desktop: the log block scrolls internally. Small screens:
             // the whole content column is the scroller (header slides away)
@@ -122,7 +134,9 @@
             for (var i = 0; i < messages.length; i++) {
                 appendMessage(messages[i]);
             }
-            lastId = data.last || lastId;
+            if (typeof data.last === "number") {
+                lastId = data.last;
+            }
             if (messages.length > 0 && atBottom) {
                 scroller.scrollTop = scroller.scrollHeight;
             }
