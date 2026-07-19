@@ -227,6 +227,35 @@ QString breadcrumbs(const QString& base, const QString& year,
     return html;
 }
 
+// Uniform archive nav bar for the year, month and day pages: prev / breadcrumbs
+// / next / today / [.txt] / live. Missing prev/next render as disabled stubs so
+// the bar keeps the same shape at every level; empty today/txt are just omitted.
+QString dateNav(const Site& site, const ServerSnapshot& server, const QString& channel,
+                const QString& prevUrl, const QString& nextUrl, const QString& crumbs,
+                const QString& todayUrl, const QString& txtUrl)
+{
+    QString nav = QStringLiteral("<div class=\"daynav\">\n");
+    nav += prevUrl.isEmpty()
+               ? QStringLiteral("<span class=\"daynav-link disabled\">&larr; prev</span>\n")
+               : QStringLiteral("<a class=\"daynav-link\" href=\"%1\">&larr; prev</a>\n").arg(prevUrl);
+    nav += crumbs;
+    nav += nextUrl.isEmpty()
+               ? QStringLiteral("<span class=\"daynav-link disabled\">next &rarr;</span>\n")
+               : QStringLiteral("<a class=\"daynav-link\" href=\"%1\">next &rarr;</a>\n").arg(nextUrl);
+    if (!todayUrl.isEmpty()) {
+        nav += QStringLiteral("<a class=\"daynav-link\" href=\"%1\">today</a>\n").arg(todayUrl);
+    }
+    if (!txtUrl.isEmpty()) {
+        nav += QStringLiteral("<a class=\"daynav-link\" href=\"%1\">.txt</a>\n").arg(txtUrl);
+    }
+    if (!site.realtimeDisabled) {
+        nav += QStringLiteral("<a class=\"daynav-link live\" href=\"/~realtime/%1/%2\">live</a>\n")
+                   .arg(server.slug, channel);
+    }
+    nav += QStringLiteral("</div>\n");
+    return nav;
+}
+
 QString logLineHtml(int number, const QString& nick, const QString& text)
 {
     const QString anchor = QStringLiteral("msg%1").arg(number);
@@ -346,10 +375,15 @@ QString yearPage(const Site& site, const ServerSnapshot& server, const QString& 
     QString content = channelHeader(site, server, channel, QString(), year);
 
     const QString base = '/' + server.slug + '/' + channel;
-    QString nav = QStringLiteral("<div class=\"daynav\">\n");
-    nav += breadcrumbs(base, year);
-    nav += QStringLiteral("</div>\n");
-    content += nav;
+    const QStringList allYears = store.years(channel);
+    const int yi = allYears.indexOf(year);
+    const QString prevUrl = (yi > 0) ? base + '/' + allYears[yi - 1] : QString();
+    const QString nextUrl = (yi >= 0 && yi + 1 < allYears.size()) ? base + '/' + allYears[yi + 1] : QString();
+    const QDate today = util::currentLogDate();
+    const QString todayUrl = store.dayExists(channel, today)
+        ? base + '/' + today.toString(QStringLiteral("yyyy/MM/dd")) : QString();
+    content += dateNav(site, server, channel, prevUrl, nextUrl,
+                       breadcrumbs(base, year), todayUrl, QString());
 
     const QList<MonthEntry> monthList = store.monthEntries(channel, year);
     if (monthList.isEmpty()) {
@@ -379,10 +413,22 @@ QString monthPage(const Site& site, const ServerSnapshot& server, const QString&
     QString content = channelHeader(site, server, channel, QString(), year, month);
 
     const QString base = '/' + server.slug + '/' + channel;
-    QString nav = QStringLiteral("<div class=\"daynav\">\n");
-    nav += breadcrumbs(base, year, month);
-    nav += QStringLiteral("</div>\n");
-    content += nav;
+    // Prev/next walk the whole archive, so navigation is continuous across year
+    // boundaries (Jan of a year steps back to Dec of the previous logged year).
+    QStringList ymTokens;
+    for (const QString& y : store.years(channel)) {
+        for (const QString& m : store.months(channel, y)) {
+            ymTokens += y + '/' + m;
+        }
+    }
+    const int mi = ymTokens.indexOf(year + '/' + month);
+    const QString prevUrl = (mi > 0) ? base + '/' + ymTokens[mi - 1] : QString();
+    const QString nextUrl = (mi >= 0 && mi + 1 < ymTokens.size()) ? base + '/' + ymTokens[mi + 1] : QString();
+    const QDate today = util::currentLogDate();
+    const QString todayUrl = store.dayExists(channel, today)
+        ? base + '/' + today.toString(QStringLiteral("yyyy/MM/dd")) : QString();
+    content += dateNav(site, server, channel, prevUrl, nextUrl,
+                       breadcrumbs(base, year, month), todayUrl, QString());
 
     const QList<DayEntry> dayList = store.dayEntries(channel, year, month);
     if (dayList.isEmpty()) {
@@ -415,30 +461,15 @@ QString dayPage(const Site& site, const ServerSnapshot& server, const QString& c
     const QDate prev = store.adjacentDay(channel, date, false);
     const QDate next = store.adjacentDay(channel, date, true);
     const QDate today = util::currentLogDate();
-
-    QString nav = QStringLiteral("<div class=\"daynav\">\n");
-    nav += prev.isValid()
-               ? QStringLiteral("<a class=\"daynav-link\" href=\"%1/%2\" title=\"%2\">&larr; prev</a>\n")
-                     .arg(base, prev.toString(QStringLiteral("yyyy/MM/dd")))
-               : QStringLiteral("<span class=\"daynav-link disabled\">&larr; prev</span>\n");
-    nav += breadcrumbs(base, date.toString(QStringLiteral("yyyy")),
-                       date.toString(QStringLiteral("MM")), date.toString(QStringLiteral("dd")));
-    nav += next.isValid()
-               ? QStringLiteral("<a class=\"daynav-link\" href=\"%1/%2\" title=\"%2\">next &rarr;</a>\n")
-                     .arg(base, next.toString(QStringLiteral("yyyy/MM/dd")))
-               : QStringLiteral("<span class=\"daynav-link disabled\">next &rarr;</span>\n");
-    if (date != today && store.dayExists(channel, today)) {
-        nav += QStringLiteral("<a class=\"daynav-link\" href=\"%1/%2\">today</a>\n")
-                   .arg(base, today.toString(QStringLiteral("yyyy/MM/dd")));
-    }
-    nav += QStringLiteral("<a class=\"daynav-link\" href=\"%1/%2.txt\">.txt</a>\n")
-               .arg(base, date.toString(QStringLiteral("yyyy/MM/dd")));
-    if (!site.realtimeDisabled) {
-        nav += QStringLiteral("<a class=\"daynav-link live\" href=\"/~realtime/%1/%2\">live</a>\n")
-                   .arg(server.slug, channel);
-    }
-    nav += QStringLiteral("</div>\n");
-    content += nav;
+    const QString ymd = date.toString(QStringLiteral("yyyy/MM/dd"));
+    const QString prevUrl = prev.isValid() ? base + '/' + prev.toString(QStringLiteral("yyyy/MM/dd")) : QString();
+    const QString nextUrl = next.isValid() ? base + '/' + next.toString(QStringLiteral("yyyy/MM/dd")) : QString();
+    const QString todayUrl = (date != today && store.dayExists(channel, today))
+        ? base + '/' + today.toString(QStringLiteral("yyyy/MM/dd")) : QString();
+    const QString crumbs = breadcrumbs(base, date.toString(QStringLiteral("yyyy")),
+                                       date.toString(QStringLiteral("MM")), date.toString(QStringLiteral("dd")));
+    content += dateNav(site, server, channel, prevUrl, nextUrl, crumbs, todayUrl,
+                       base + '/' + ymd + QStringLiteral(".txt"));
 
     const QList<LogLine> lines = store.readDay(channel, date);
     if (lines.isEmpty()) {

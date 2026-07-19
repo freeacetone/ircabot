@@ -405,6 +405,12 @@ body { overflow: hidden; } /* the page itself never scrolls */
     margin: 14px 0;
 }
 
+/* Uniform gap from the nav bar to the block below it on every archive level.
+   .content is a flex column, where margins do not collapse, so the nav's 14px
+   and the panel's 14px would stack to 28px - unlike the day page, whose .log has
+   no top margin (14px). Drop the following panel's top margin to match. */
+.daynav + .panel { margin-top: 0; }
+
 /* Scoped-search navigation rows: a control row (back / up) above the match
    count, and a dense strip of date chips below it for narrowing the search. */
 .search-nav-row {
