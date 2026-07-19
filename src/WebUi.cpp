@@ -505,7 +505,6 @@ QHttpServerResponse WebUi::serveApi(const QString& slug, const QString& channel,
     for (const LiveMessage& msg : messages) {
         messagesJson.push_back(QJsonObject{
             {QStringLiteral("id"), QString::number(msg.id)},
-            {QStringLiteral("time"), msg.unixTime},
             {QStringLiteral("nick"), msg.nick},
             {QStringLiteral("hue"), util::nickHue(msg.nick)},
             {QStringLiteral("text"), msg.text},

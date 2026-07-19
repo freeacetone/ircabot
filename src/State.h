@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <QDateTime>
+#include <QDate>
 #include <QHash>
 #include <QList>
 #include <QReadWriteLock>
@@ -17,7 +17,6 @@ namespace ircabot {
 struct LiveMessage
 {
     quint64 id = 0;
-    qint64 unixTime = 0;
     QString nick;
     QString text;
 };
@@ -44,7 +43,7 @@ struct ServerSnapshot
 class RuntimeState
 {
 public:
-    static constexpr int LIVE_CACHE_SIZE = 150;
+    static constexpr int LIVE_CACHE_SIZE = 50;
 
     void registerServer(const QString& displayName, const QString& slug, const QStringList& channels);
 

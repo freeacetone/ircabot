@@ -48,9 +48,11 @@
         var line = document.createElement("div");
         line.className = "line";
 
+        // The server keeps no receive time (privacy by design), so the moment
+        // the line reaches the browser is what we show - the reader's own clock.
         var time = document.createElement("span");
         time.className = "ln";
-        var date = new Date(msg.time * 1000);
+        var date = new Date();
         time.textContent =
             ("0" + date.getHours()).slice(-2) + ":" + ("0" + date.getMinutes()).slice(-2);
 

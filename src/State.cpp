@@ -70,7 +70,9 @@ void RuntimeState::pushLiveMessage(const QString& slug, const QString& channel,
         return;
     }
     QList<LiveMessage>& ring = it->liveCache[channel];
-    ring.push_back({m_nextMessageId++, QDateTime::currentSecsSinceEpoch(), nick, text});
+    // No receive time is kept: privacy by design. The live view stamps each
+    // line with the reader's own clock when it arrives in the browser.
+    ring.push_back({m_nextMessageId++, nick, text});
     while (ring.size() > LIVE_CACHE_SIZE) {
         ring.pop_front();
     }
