@@ -644,12 +644,11 @@ body { overflow: hidden; } /* the page itself never scrolls */
     .chan-head { margin-bottom: 6px; row-gap: 4px; }
     .chan-title h1 { font-size: 16px; }
 
-    /* Topic takes a single line, full text stays on desktop */
+    /* Topic wraps across as many lines as it needs, so short topics are not
+       clipped to half a line on a phone; long tokens (URLs) break too */
     .chan-topic {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
         font-size: 12px;
+        overflow-wrap: anywhere;
     }
 
     .daynav { margin: 8px 0; gap: 6px; }
