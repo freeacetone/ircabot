@@ -296,7 +296,7 @@ QString aboutPage(const Site& site, const ServerSnapshot& server, const QString&
 QString calendarPage(const Site& site, const ServerSnapshot& server, const QString& channel,
                      const LogStore& store)
 {
-    QString content = channelHeader(site, server, channel, QStringLiteral("archive"));
+    QString content = channelHeader(site, server, channel, QString());
 
     const QDate today = util::currentLogDate();
     QString quickNav = QStringLiteral("<div class=\"daynav\">\n");
@@ -343,7 +343,7 @@ QString calendarPage(const Site& site, const ServerSnapshot& server, const QStri
 QString yearPage(const Site& site, const ServerSnapshot& server, const QString& channel,
                  const LogStore& store, const QString& year)
 {
-    QString content = channelHeader(site, server, channel, QStringLiteral("archive"), year);
+    QString content = channelHeader(site, server, channel, QString(), year);
 
     const QString base = '/' + server.slug + '/' + channel;
     QString nav = QStringLiteral("<div class=\"daynav\">\n");
@@ -376,7 +376,7 @@ QString yearPage(const Site& site, const ServerSnapshot& server, const QString& 
 QString monthPage(const Site& site, const ServerSnapshot& server, const QString& channel,
                   const LogStore& store, const QString& year, const QString& month)
 {
-    QString content = channelHeader(site, server, channel, QStringLiteral("archive"), year, month);
+    QString content = channelHeader(site, server, channel, QString(), year, month);
 
     const QString base = '/' + server.slug + '/' + channel;
     QString nav = QStringLiteral("<div class=\"daynav\">\n");
@@ -406,7 +406,7 @@ QString dayPage(const Site& site, const ServerSnapshot& server, const QString& c
                 const LogStore& store, const QDate& date)
 {
     const QString dateStr = date.toString(QStringLiteral("yyyy-MM-dd"));
-    QString content = channelHeader(site, server, channel, dateStr,
+    QString content = channelHeader(site, server, channel, QString(),
                                     date.toString(QStringLiteral("yyyy")),
                                     date.toString(QStringLiteral("MM")),
                                     date.toString(QStringLiteral("dd")));
