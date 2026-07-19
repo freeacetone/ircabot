@@ -133,6 +133,12 @@ quint64 RuntimeState::requestsServedToday() const
     return m_requestCounterDate == util::currentLogDate() ? m_requestCounter : 0;
 }
 
+quint64 RuntimeState::txtRequestsServedToday() const
+{
+    const QReadLocker locker(&m_counterLock);
+    return m_requestCounterDate == util::currentLogDate() ? m_txtRequestCounter : 0;
+}
+
 quint64 RuntimeState::ajaxRequestsServedToday() const
 {
     const QReadLocker locker(&m_counterLock);
@@ -146,9 +152,23 @@ void RuntimeState::countRequest() const
     if (m_requestCounterDate != today) {
         m_requestCounterDate = today;
         m_requestCounter = 0;
+        m_txtRequestCounter = 0;
         m_ajaxRequestCounter = 0;
     }
     ++m_requestCounter;
+}
+
+void RuntimeState::countTxtRequest() const
+{
+    const QWriteLocker locker(&m_counterLock);
+    const QDate today = util::currentLogDate();
+    if (m_requestCounterDate != today) {
+        m_requestCounterDate = today;
+        m_requestCounter = 0;
+        m_txtRequestCounter = 0;
+        m_ajaxRequestCounter = 0;
+    }
+    ++m_txtRequestCounter;
 }
 
 void RuntimeState::countAjaxRequest() const
@@ -158,6 +178,7 @@ void RuntimeState::countAjaxRequest() const
     if (m_requestCounterDate != today) {
         m_requestCounterDate = today;
         m_requestCounter = 0;
+        m_txtRequestCounter = 0;
         m_ajaxRequestCounter = 0;
     }
     ++m_ajaxRequestCounter;

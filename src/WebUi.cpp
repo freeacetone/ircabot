@@ -414,7 +414,16 @@ QHttpServerResponse WebUi::servePage(const render::Site& site,
                                      const QString& year, const QString& month, const QString& dayRaw,
                                      const QUrlQuery& query)
 {
-    m_state->countRequest();
+    // A .txt day log is a raw-log grab, not a page view: give it its own tally
+    // so the main-page breakdown does not fold plain-text hits into html.
+    QString day = dayRaw;
+    const bool plainText = day.endsWith(QStringLiteral(".txt"));
+    if (plainText) {
+        day.chop(4);
+        m_state->countTxtRequest();
+    } else {
+        m_state->countRequest();
+    }
 
     const auto notFound = [&site](const QString& what) {
         return html(render::errorPage(site, QStringLiteral("404"), what),
@@ -435,11 +444,6 @@ QHttpServerResponse WebUi::servePage(const render::Site& site,
     // validate them up front: both paths feed them to the filesystem.
     if ((!year.isEmpty() && !safeSegment(year)) || (!month.isEmpty() && !safeSegment(month))) {
         return notFound(QStringLiteral("Bad date"));
-    }
-    QString day = dayRaw;
-    const bool plainText = day.endsWith(QStringLiteral(".txt"));
-    if (plainText) {
-        day.chop(4);
     }
     if (!day.isEmpty() && !safeSegment(day)) {
         return notFound(QStringLiteral("Bad date"));

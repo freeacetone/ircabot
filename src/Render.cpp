@@ -252,11 +252,14 @@ QString mainPage(const Site& site, const QString& mainPageText)
 
     QString welcome = mainPageText;
     welcome.replace(QStringLiteral("%LOCAL_TIME%"), util::currentLogTimeString());
-    QString requestsCounter = QString::number(site.state->requestsServedToday());
-    if (!site.realtimeDisabled) {
-        requestsCounter += QStringLiteral(" (html) / %1 (ajax)")
-                               .arg(site.state->ajaxRequestsServedToday());
-    }
+    const quint64 htmlHits = site.state->requestsServedToday();
+    const quint64 txtHits = site.state->txtRequestsServedToday();
+    const quint64 ajaxHits = site.state->ajaxRequestsServedToday();
+    const QString requestsCounter = QStringLiteral("%1 (%2 html, %3 txt, %4 ajax)")
+                                        .arg(htmlHits + txtHits + ajaxHits)
+                                        .arg(htmlHits)
+                                        .arg(txtHits)
+                                        .arg(ajaxHits);
     welcome.replace(QStringLiteral("%DAILY_REQUESTS%"), requestsCounter);
     content += QStringLiteral("<section class=\"panel\">%1</section>\n").arg(welcome);
 
