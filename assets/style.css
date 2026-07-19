@@ -125,6 +125,7 @@ body { overflow: hidden; } /* the page itself never scrolls */
 .frame {
     display: flex;
     height: 100vh;
+    height: 100dvh; /* exclude the mobile browser toolbar, so the bottom is reachable */
     max-width: 1280px;
     margin: 0 auto;
 }
@@ -655,7 +656,11 @@ body { overflow: hidden; } /* the page itself never scrolls */
 
     /* The header scrolls away with the content: only the slim brand bar
        at the top of the screen stays static on small screens */
-    .content.chat { overflow-y: auto; }
+    .content.chat {
+        overflow-y: auto;
+        /* breathing room so the last line clears the phone's bottom edge */
+        padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+    }
     .content.chat .log {
         flex: none;
         min-height: auto;
