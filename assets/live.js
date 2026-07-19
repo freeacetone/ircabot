@@ -59,13 +59,18 @@
         var nick = document.createElement("span");
         nick.className = "nick";
         nick.style.setProperty("--h", msg.hue); // theme decides the rest
-        nick.textContent = msg.nick;
-        // Real ": " (copyable, matching the archive) so a copied line reads
-        // "nick: message" instead of the nick glued to the first word.
-        var nickSep = document.createElement("span");
-        nickSep.className = "nick-sep";
-        nickSep.textContent = ": ";
-        nick.appendChild(nickSep);
+        // Invisible, copyable "[" and "] " around the nick so a copied line
+        // matches the .txt log format "[nick] message" (the visible "> " prompt
+        // is a CSS ::after and is never copied).
+        var openBracket = document.createElement("span");
+        openBracket.className = "nick-sep";
+        openBracket.textContent = "[";
+        var closeBracket = document.createElement("span");
+        closeBracket.className = "nick-sep";
+        closeBracket.textContent = "] ";
+        nick.appendChild(openBracket);
+        nick.appendChild(document.createTextNode(msg.nick));
+        nick.appendChild(closeBracket);
 
         var text = document.createElement("span");
         text.className = "msg";
