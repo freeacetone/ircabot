@@ -25,10 +25,10 @@ public:
     explicit LogCache(qint64 maxBytes);
 
     // Bytes for `path`. On a miss `loader` reads them from disk; the result is
-    // then stored (evicting the least-recently-used entries to stay within the
-    // budget) only when `store` is true. Search scans pass store == false, so a
-    // full-history sweep reads through the cache without flushing it.
-    QByteArray get(const QString& path, bool store, const std::function<QByteArray()>& loader);
+    // then stored, evicting the least-recently-used entries to stay within the
+    // budget. Every archive read populates the cache, so the first full-history
+    // sweep pulls the whole channel into the LRU where it stays until evicted.
+    QByteArray get(const QString& path, const std::function<QByteArray()>& loader);
 
     qint64 maxBytes() const { return m_maxBytes; }
 

@@ -200,7 +200,7 @@ LogLine LogStore::parseLine(const QString& raw)
     return result;
 }
 
-QByteArray LogStore::dayBytes(const QString& channel, const QDate& date, bool store) const
+QByteArray LogStore::dayBytes(const QString& channel, const QDate& date) const
 {
     const QString path = dayPath(channel, date);
     const auto readFromDisk = [&path] {
@@ -214,13 +214,13 @@ QByteArray LogStore::dayBytes(const QString& channel, const QDate& date, bool st
     if (!m_cache || date >= util::currentLogDate()) {
         return readFromDisk();
     }
-    return m_cache->get(path, store, readFromDisk);
+    return m_cache->get(path, readFromDisk);
 }
 
 QList<LogLine> LogStore::readDay(const QString& channel, const QDate& date) const
 {
     QList<LogLine> result;
-    const QList<QByteArray> lines = dayBytes(channel, date, true).split('\n');
+    const QList<QByteArray> lines = dayBytes(channel, date).split('\n');
     for (const QByteArray& raw : lines) {
         QString line = QString::fromUtf8(raw);
         while (line.endsWith('\r')) {
@@ -236,7 +236,7 @@ QList<LogLine> LogStore::readDay(const QString& channel, const QDate& date) cons
 
 QByteArray LogStore::readDayRaw(const QString& channel, const QDate& date) const
 {
-    return dayBytes(channel, date, true);
+    return dayBytes(channel, date);
 }
 
 QString LogStore::aboutServerHtml() const
@@ -313,9 +313,10 @@ SearchResult LogStore::search(const QString& channel, const QString& query, bool
                 }
                 ++result.scannedDays;
 
-                // Scan reads through the cache but does not populate it, so a
-                // deep search cannot evict the archive days people are reading.
-                const QList<QByteArray> lines = dayBytes(channel, date, false).split('\n');
+                // The scan populates the cache like any other read: the first
+                // full-history search pulls every archive day into the LRU,
+                // where it stays until evicted by the byte budget.
+                const QList<QByteArray> lines = dayBytes(channel, date).split('\n');
                 int lineNumber = 0;
                 for (const QByteArray& raw : lines) {
                     QString line = QString::fromUtf8(raw);

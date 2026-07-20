@@ -101,8 +101,8 @@ private:
     QString dayPath(const QString& channel, const QDate& date) const;
     // Raw bytes of a day file. Past days are immutable and go through the cache;
     // today's file is still being appended to and is always read fresh from disk.
-    // `store` == false reads through the cache without inserting (search scans).
-    QByteArray dayBytes(const QString& channel, const QDate& date, bool store) const;
+    // Every archive read populates the cache, search scans included.
+    QByteArray dayBytes(const QString& channel, const QDate& date) const;
 
     QString m_serverDir; // <data>/<slug>/
     QString m_serverSlug;

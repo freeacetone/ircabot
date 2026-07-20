@@ -12,7 +12,7 @@ LogCache::LogCache(qint64 maxBytes)
 {
 }
 
-QByteArray LogCache::get(const QString& path, bool store, const std::function<QByteArray()>& loader)
+QByteArray LogCache::get(const QString& path, const std::function<QByteArray()>& loader)
 {
     {
         const QMutexLocker locker(&m_mutex);
@@ -26,7 +26,7 @@ QByteArray LogCache::get(const QString& path, bool store, const std::function<QB
     // Miss: read from disk without holding the lock, so a slow read does not
     // serialize parallel reads of other files.
     QByteArray data = loader();
-    if (!store || m_maxBytes <= 0 || static_cast<qint64>(data.size()) > m_maxBytes) {
+    if (m_maxBytes <= 0 || static_cast<qint64>(data.size()) > m_maxBytes) {
         return data; // caching disabled, or a single file larger than the whole budget
     }
 
