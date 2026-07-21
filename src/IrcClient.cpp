@@ -793,13 +793,22 @@ void IrcClient::onVoiceGateTick()
         }
         const bool gated = botOp && m_moderated.contains(lc);
         const bool wasGated = m_gated.contains(lc);
+        // Only announce the gate in-channel when the bot itself set +m this
+        // session. After a network drop the channel is usually still +m, so the
+        // bot re-engages silently instead of re-posting "activated" on every
+        // reconnect; the console log still records the transition either way.
+        const bool botModerated = m_setModerated.contains(lc);
         if (gated && !wasGated) {
             m_gated.insert(ch.toLower());
-            sendAction(ch, QStringLiteral("Voice gate mode activated"));
+            if (botModerated) {
+                sendAction(ch, QStringLiteral("Voice gate mode activated"));
+            }
             consoleLog("Voice gate activated on " + ch);
         } else if (!gated && wasGated) {
             m_gated.remove(ch.toLower());
-            sendAction(ch, QStringLiteral("Voice gate mode deactivated"));
+            if (botModerated) {
+                sendAction(ch, QStringLiteral("Voice gate mode deactivated"));
+            }
             consoleLog("Voice gate deactivated on " + ch);
         }
         if (!gated) {
