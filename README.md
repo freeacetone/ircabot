@@ -13,7 +13,7 @@ desperately.
 - **Configuration is plain JSON** (`./ircabot --example config.json` writes
   a documented template). Top-level keys: `data_path`, `log_local_time`
   (day rotation timezone: `false`/default = UTC, `true` = server local time),
-  `log_cache_mb` (RAM budget for the archive log cache, default 100, `0`
+  `log_cache_mb` (RAM budget for the archive log cache, default 30, `0`
   disables), `web{}` (address, port,
   service name/emoji, `realtime_disabled`), `voicegate{}` (`enabled`,
   `set_moderated`, `captcha_url`, `captcha_length`, `connect_delay_seconds`,

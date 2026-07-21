@@ -67,7 +67,7 @@ private:
 
     QString m_dataPath;
     bool m_logLocalTime = false; // false: rotate days in UTC; true: server local time
-    qint64 m_logCacheBytes = 100LL * 1024 * 1024; // archive log-file RAM cache budget
+    qint64 m_logCacheBytes = 30LL * 1024 * 1024; // archive log-file RAM cache budget
     QString m_bindAddress;
     quint16 m_bindPort = 0;
     QString m_serviceName;

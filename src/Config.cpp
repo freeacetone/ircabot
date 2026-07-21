@@ -61,7 +61,7 @@ QString Config::exampleText()
     "log_local_time": false,
 
     "_comment_log_cache_mb": "Archive log files kept in RAM (LRU), in MB; 0 disables. Today's file is never cached",
-    "log_cache_mb": 100,
+    "log_cache_mb": 30,
 
     "web": {
         "_comment": "JS is used only on /~realtime/ pages; realtime_disabled removes it entirely",
@@ -151,7 +151,7 @@ void Config::parse(const QByteArray& raw)
 
     // Archive log files are cached in RAM up to this budget (LRU eviction);
     // 0 disables the cache. Today's still-growing file is never cached.
-    const int logCacheMb = root.value(QStringLiteral("log_cache_mb")).toInt(100);
+    const int logCacheMb = root.value(QStringLiteral("log_cache_mb")).toInt(30);
     m_logCacheBytes = static_cast<qint64>(qBound(0, logCacheMb, 1024 * 64)) * 1024 * 1024;
 
     const QJsonObject web = root.value(QStringLiteral("web")).toObject();
