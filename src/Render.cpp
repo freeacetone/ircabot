@@ -282,10 +282,6 @@ QString logLineHtml(int number, const QString& nick, const QString& text)
 QString mainPage(const Site& site, const QString& mainPageText)
 {
     QString content;
-    content += QStringLiteral("<header class=\"chan-head\"><div class=\"chan-title\">"
-                              "<h1 class=\"glow\">%1</h1></div></header>\n")
-                   .arg(esc(site.serviceName));
-
     QString welcome = mainPageText;
     welcome.replace(QStringLiteral("%LOCAL_TIME%"), util::currentLogTimeString());
     const quint64 htmlHits = site.state->requestsServedToday();
