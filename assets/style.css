@@ -580,9 +580,7 @@ body { overflow: hidden; } /* the page itself never scrolls */
     justify-content: center;
     padding: 20px;
     overflow-y: auto;
-    background: rgba(8, 7, 6, 0.72);
-    backdrop-filter: blur(3px) saturate(0.85);
-    -webkit-backdrop-filter: blur(3px) saturate(0.85);
+    background: rgba(8, 7, 6, 0.86);
 }
 
 .modal.captcha-modal {
@@ -595,12 +593,6 @@ body { overflow: hidden; } /* the page itself never scrolls */
     padding: 26px 26px 22px;
     text-align: center;
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 42px var(--glow-amber);
-    animation: captcha-in 0.28s ease-out;
-}
-
-@keyframes captcha-in {
-    from { opacity: 0; transform: translateY(10px) scale(0.98); }
-    to   { opacity: 1; transform: none; }
 }
 
 .captcha-modal h1 { font-size: 26px; color: var(--amber); margin: 0 0 6px; letter-spacing: 1px; }
