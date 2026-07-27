@@ -121,6 +121,7 @@ private:
     QSet<QString> m_gated;                        // channels currently in voice-gate mode
     QSet<QString> m_setModerated;                 // channels we already sent +m to
     QHash<QString, qint64> m_pendingSince;        // nick -> first seen unvoiced (ms)
+    QSet<QString> m_onlineMarked;                 // presence keys already stamped online
     QHash<QString, qint64> m_lastWho;             // channel -> last WHO (ms)
     QHash<QString, qint64> m_lastPmReply;         // nick -> last PM reply (ms), anti-flood
     qint64 m_lastSweep = 0;

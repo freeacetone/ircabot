@@ -110,6 +110,7 @@ void IrcClient::start()
     m_gated.clear();
     m_setModerated.clear();
     m_pendingSince.clear();
+    m_onlineMarked.clear();
     m_lastWho.clear();
     m_lastPmReply.clear();
     m_sendQueue.clear();
@@ -161,6 +162,13 @@ void IrcClient::onDisconnected()
     m_sendTimer.stop();
     m_registered = false;
     m_state->setConnected(m_config.slug, false);
+    // We can no longer see anyone: drop the presence set rather than let the
+    // captcha page keep vouching for users from a dead connection. Nobody is
+    // marked offline here - the bot's own outage is not the users' absence.
+    if (voiceGateActive()) {
+        m_voiceGate->setPresent(m_config.slug, {});
+        m_onlineMarked.clear();
+    }
 
     if (!m_reconnectLogged) {
         consoleLog("Disconnected. Reconnecting every " + QString::number(RECONNECT_DELAY_MS / 1000) + " sec...");
@@ -454,6 +462,10 @@ void IrcClient::processLine(const QString& line)
             m_moderated.remove(channel.toLower());
             m_gated.remove(channel.toLower());
             m_setModerated.remove(channel.toLower());
+            // Out of the channel we see nobody in it: a stale roster would keep
+            // the web claiming those users are present.
+            m_online.remove(channel);
+            publishOnline(channel);
             return;
         }
         auto& list = m_online[channel];
@@ -477,6 +489,8 @@ void IrcClient::processLine(const QString& line)
                 m_moderated.remove(channel.toLower());
                 m_gated.remove(channel.toLower());
                 m_setModerated.remove(channel.toLower());
+                m_online.remove(channel);
+                publishOnline(channel);
                 return;
             }
             auto& list = m_online[channel];
@@ -566,6 +580,13 @@ void IrcClient::handlePrivmsg(const IrcMessage& msg)
     if (msg.params.isEmpty()) {
         return;
     }
+    // Every PRIVMSG carries the sender's host in its prefix - a free host source
+    // that does not have to wait for the next throttled WHO, so a user who just
+    // spoke is recognised by the captcha page right away.
+    if (voiceGateActive() && !msg.prefixNick.isEmpty() && !msg.prefixHost.isEmpty()) {
+        m_userHost.insert(msg.prefixNick.toLower(), msg.prefixHost);
+    }
+
     const QString target = msg.params.first();
     if (!target.startsWith('#')) {
         handlePrivateQuery(msg.prefixNick, msg.prefixHost); // PM to the bot: captcha reply
@@ -731,11 +752,23 @@ void IrcClient::handlePrivateQuery(const QString& nick, const QString& host)
     if (m_voiceGate->isGranted(m_config.slug, nick, host)) {
         send("PRIVMSG " + nick
              + " :You have already passed the captcha and have a voice on the channels I moderate.");
-    } else {
-        sendCaptchaPm(nick, host);
+        return;
     }
+    // A captcha link only works while the bot can see the sender in one of its
+    // channels, so handing one out from a PM alone would send the user to a page
+    // that refuses them. Say what is missing instead.
+    if (!isUserPresent(nick)) {
+        send("PRIVMSG " + nick
+             + " :I do not see you in any channel I am in. The captcha works only while you are"
+               " present in one of them - join a channel and write to me again.");
+        return;
+    }
+    sendCaptchaPm(nick, host);
 }
 
+// Called when the user is gone from every channel we are in - a QUIT, or the
+// last PART/KICK. Being absent from one channel while sitting in another is not
+// an absence at all, so it never reaches here and never starts the TTL.
 void IrcClient::userWentOffline(const QString& nick)
 {
     const QString key = nick.toLower();
@@ -743,6 +776,10 @@ void IrcClient::userWentOffline(const QString& nick)
         const QString host = m_userHost.value(key);
         if (!host.isEmpty()) {
             m_voiceGate->markOffline(m_config.slug, nick, host);
+            // Drop the "already seen online" mark, so a user who reconnects
+            // within a single tick is stamped online again rather than being
+            // mistaken for someone who never left.
+            m_onlineMarked.remove(VoiceGate::presenceKey(nick, VoiceGate::hostHash(host)));
         }
     }
     m_userHost.remove(key);
@@ -763,17 +800,38 @@ void IrcClient::onVoiceGateTick()
 
     // Publish present users (with a known host) so the web can refuse captchas
     // for a nick+host that is not actually online.
+    //
+    // The same sweep also freezes the offline TTL of everyone the bot can see.
+    // It must happen here, above the per-channel gate logic: the offline clock
+    // starts whenever a user leaves every channel we are in, so it has to stop
+    // wherever we see them again - including channels we do not moderate, or do
+    // not (yet) hold op in. Doing it only for gated channels let the clock keep
+    // running under a user who never went anywhere, until the sweep dropped a
+    // perfectly good grant.
     QSet<QString> present;
+    QList<QPair<QString, QString>> seen; // (nick, host) newly visible this tick
     for (auto it = m_online.constBegin(); it != m_online.constEnd(); ++it) {
         for (const QString& entry : it.value()) {
             const QString nick = util::stripNickPrefix(entry);
             const QString host = m_userHost.value(nick.toLower());
-            if (!host.isEmpty()) {
-                present.insert(VoiceGate::presenceKey(nick, VoiceGate::hostHash(host)));
+            if (host.isEmpty()) {
+                continue;
+            }
+            const QString key = VoiceGate::presenceKey(nick, VoiceGate::hostHash(host));
+            present.insert(key);
+            if (!m_onlineMarked.contains(key)) {
+                seen.push_back({nick, host});
             }
         }
     }
     m_voiceGate->setPresent(m_config.slug, present);
+    // Only the online transitions reach the disk; a user who stays visible is
+    // not re-stamped on every tick.
+    m_onlineMarked.intersect(present);
+    for (const auto& [nick, host] : seen) {
+        m_voiceGate->markOnline(m_config.slug, nick, host);
+        m_onlineMarked.insert(VoiceGate::presenceKey(nick, VoiceGate::hostHash(host)));
+    }
 
     const qint64 delayMs = static_cast<qint64>(m_voiceGate->config().connectDelaySeconds) * 1000;
     const QString me = currentNick();
@@ -838,7 +896,7 @@ void IrcClient::onVoiceGateTick()
             }
 
             if (m_voiceGate->isGranted(m_config.slug, nick, host)) {
-                m_voiceGate->markOnline(m_config.slug, nick, host); // freeze TTL while online
+                // The TTL was already frozen by the presence sweep above.
                 m_pendingSince.remove(key);
                 if (!voiced) {
                     grantVoice(ch, nick);

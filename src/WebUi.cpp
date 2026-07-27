@@ -584,12 +584,31 @@ QHttpServerResponse WebUi::serveCaptcha(const render::Site& site, const QString&
             true));
     }
 
+    // With the bot itself off the network nobody is visible, and "you are not in
+    // my channels" would be a plain lie. Name the real obstacle instead.
+    if (!snap.connected) {
+        return html(render::captchaPage(
+            site, server, serverName, nick, hostHash, QString(), QString(),
+            QStringLiteral("I am not connected to ") + serverName
+                + QStringLiteral(" right now, so I cannot see anyone there. Try this link again "
+                                 "once the bot is back online."),
+            false));
+    }
+
     // Checking presence is cheaper than drawing a captcha, so do it first: refuse
-    // to issue or accept one unless this exact nick+host is online here.
+    // to issue or accept one unless this exact nick+host is online here. Being
+    // absent here means absent from the bot's channels, not offline, and the
+    // message has to say so - otherwise a user sitting in an unrelated channel
+    // reads it as "the bot cannot see that I am connected at all".
     if (!m_voiceGate->isPresent(server, nick, hostHash)) {
         return html(render::captchaPage(
             site, server, serverName, nick, hostHash, QString(), QString(),
-            QStringLiteral("This nick is not online on ") + serverName + QStringLiteral(" - join the channel first."),
+            QStringLiteral("I do not see ") + nick + QStringLiteral(" in any channel I am in on ")
+                + serverName
+                + QStringLiteral(". You may well be connected to the network - this link works only "
+                                 "while you are present in one of my channels, under the same nick "
+                                 "and from the same host as when the link was issued. Join one of "
+                                 "them and reload this page."),
             false));
     }
 
