@@ -133,7 +133,7 @@ int main(int argc, char* argv[])
         QList<IrcClient*> clients;
         for (const ServerConfig& serverConfig : config.servers()) {
             auto store = std::make_shared<LogStore>(config.dataPath(), serverConfig.slug,
-                                                    serverConfig.channels, &logCache);
+                                                    channelNames(serverConfig.channels), &logCache);
             stores.insert(serverConfig.slug, store);
             clients.push_back(new IrcClient(serverConfig, &state, store.get(), &voiceGate, &app));
         }

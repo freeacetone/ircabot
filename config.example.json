@@ -42,11 +42,12 @@
     "servers": [
         {
             "_comment": "nick, user, real_name, password and triggers can be overridden per server",
+            "_comment_channels": "A channel is \"#name\" or {\"name\": \"#name\", \"lang\": \"ru\"}. lang (default en) becomes the <html lang> of that channel's log pages, so a browser can offer to translate a chat held in that language",
             "name": "Displayed server name",
             "address": "127.0.0.1",
             "port": 6667,
             "ssl": false,
-            "channels": ["#general", "#test"]
+            "channels": ["#general", {"name": "#test", "lang": "ru"}]
         }
     ]
 }

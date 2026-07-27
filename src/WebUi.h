@@ -45,7 +45,7 @@ private:
     QHttpServerResponse serveCaptcha(const render::Site& site, const QString& server,
                                      const QString& nick, const QString& hostHash,
                                      bool isPost, const QByteArray& body);
-    QHttpServerResponse servePage(const render::Site& site,
+    QHttpServerResponse servePage(const render::Site& baseSite,
                                   const QString& serverSlug, const QString& channel,
                                   const QString& year, const QString& month, const QString& day,
                                   const QUrlQuery& query);

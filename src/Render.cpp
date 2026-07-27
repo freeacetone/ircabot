@@ -22,6 +22,22 @@ QString esc(const QString& s)
     return s.toHtmlEscaped();
 }
 
+QString pageLang(const Site& site)
+{
+    return site.lang.isEmpty() ? QStringLiteral("en") : site.lang;
+}
+
+// The ready-to-paste ` lang="en"` attribute for the English parts of a page
+// rendered in some other language: the sidebar, the navigation, the nicks. On an
+// English page it would only repeat <html lang>, so it comes back empty.
+QString uiLang(const Site& site)
+{
+    const QString lang = pageLang(site);
+    const bool english = lang.compare(QStringLiteral("en"), Qt::CaseInsensitive) == 0
+                      || lang.startsWith(QStringLiteral("en-"), Qt::CaseInsensitive);
+    return english ? QString() : QStringLiteral(" lang=\"en\"");
+}
+
 QString themeSwitcher(const Site& site)
 {
     const QString back = QString::fromUtf8(
@@ -44,13 +60,13 @@ QString sidebar(const Site& site, const PageRef& ref)
 {
     QString html;
     html += QStringLiteral(
-        "<nav class=\"side\">\n"
+        "<nav class=\"side\"%1>\n"
         "<div class=\"side-top\">\n"
-        "<a class=\"side-brand\" href=\"/\"><span class=\"side-brand-emoji\">%1</span> %2</a>\n"
+        "<a class=\"side-brand\" href=\"/\"><span class=\"side-brand-emoji\">%2</span> %3</a>\n"
         "<label class=\"nav-burger\" for=\"nav-toggle\" title=\"menu\">&#9776;</label>\n"
         "</div>\n"
         "<div class=\"side-body\">\n")
-                .arg(site.serviceEmoji, esc(site.serviceName));
+                .arg(uiLang(site), site.serviceEmoji, esc(site.serviceName));
 
     const QList<ServerSnapshot> servers = site.state->snapshotAll();
     for (const ServerSnapshot& srv : servers) {
@@ -92,19 +108,19 @@ QString page(const Site& site, const PageRef& ref, const QString& title,
     QString html;
     html += QStringLiteral(
         "<!DOCTYPE html>\n"
-        "<html lang=\"en\"%1>\n"
+        "<html lang=\"%1\"%2>\n"
         "<head>\n"
         "<meta charset=\"utf-8\">\n"
         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
         "<meta name=\"color-scheme\" content=\"dark light\">\n"
-        "<title>%2</title>\n"
+        "<title>%3</title>\n"
         "<link rel=\"stylesheet\" href=\"/style.css\">\n"
         "<link rel=\"icon\" href=\"/favicon.svg\" type=\"image/svg+xml\">\n"
-        "%3"
+        "%4"
         "</head>\n<body>\n<div class=\"crt\"></div>\n"
         "<input type=\"checkbox\" id=\"nav-toggle\" class=\"nav-toggle\">\n"
         "<div class=\"frame\">\n")
-                .arg(htmlClass, esc(title), headExtra);
+                .arg(pageLang(site), htmlClass, esc(title), headExtra);
     html += sidebar(site, ref);
     html += QStringLiteral("<main class=\"content%1\">\n").arg(mainClass.isEmpty() ? QString() : ' ' + mainClass)
           + content + QStringLiteral("</main>\n");
@@ -118,9 +134,12 @@ QString channelHeader(const Site& site, const ServerSnapshot& server, const QStr
                       const QString& from = QString())
 {
     const ChannelSnapshot chan = site.state->channelSnapshot(server.slug, channel);
+    const QString ui = uiLang(site);
 
     QString html;
-    html += QStringLiteral("<header class=\"chan-head\">\n<div class=\"chan-title\">\n");
+    // The header is English except for the topic, which is written by the
+    // channel and belongs to the page language like the log itself.
+    html += QStringLiteral("<header class=\"chan-head\">\n<div class=\"chan-title\"%1>\n").arg(ui);
     html += QStringLiteral("<h1>#%1</h1><span class=\"chan-at\">@</span>"
                            "<a class=\"chan-server\" href=\"/%2\">%3</a>\n")
                 .arg(esc(channel), server.slug, esc(server.displayName));
@@ -160,18 +179,20 @@ QString channelHeader(const Site& site, const ServerSnapshot& server, const QStr
 
     // Grep button on the right, stretched to the width of the regexp checkbox below it.
     html += QStringLiteral(
-        "<form class=\"search\" method=\"get\" action=\"%1\">\n"
-        "<input type=\"hidden\" name=\"from\" value=\"%2\">\n"
-        "<input class=\"search-input\" type=\"search\" name=\"toSearch\" placeholder=\"%3\">\n"
+        "<form class=\"search\" method=\"get\" action=\"%1\"%2>\n"
+        "<input type=\"hidden\" name=\"from\" value=\"%3\">\n"
+        "<input class=\"search-input\" type=\"search\" name=\"toSearch\" placeholder=\"%4\">\n"
         "<div class=\"search-side\">\n"
         "<button class=\"search-btn\" type=\"submit\">grep</button>\n"
         "<label class=\"search-rgx\"><input type=\"checkbox\" name=\"isRegexp\" value=\"on\"> regexp</label>\n"
         "</div>\n"
         "</form>\n")
-                .arg(action, esc(origin), esc(placeholder));
+                .arg(action, ui, esc(origin), esc(placeholder));
 
     if (!chan.online.isEmpty()) {
-        html += QStringLiteral("<details class=\"online\"><summary>online: %1</summary><div class=\"online-list\">\n")
+        html += QStringLiteral("<details class=\"online\"%1><summary>online: %2</summary>"
+                               "<div class=\"online-list\">\n")
+                    .arg(ui)
                     .arg(chan.online.size());
         for (const QString& rawNick : chan.online) {
             const QString plain = util::stripNickPrefix(rawNick);
@@ -234,7 +255,7 @@ QString dateNav(const Site& site, const ServerSnapshot& server, const QString& c
                 const QString& prevUrl, const QString& nextUrl, const QString& crumbs,
                 const QString& todayUrl, const QString& txtUrl)
 {
-    QString nav = QStringLiteral("<div class=\"daynav\">\n");
+    QString nav = QStringLiteral("<div class=\"daynav\"%1>\n").arg(uiLang(site));
     nav += prevUrl.isEmpty()
                ? QStringLiteral("<span class=\"daynav-link disabled\">&larr; prev</span>\n")
                : QStringLiteral("<a class=\"daynav-link\" href=\"%1\">&larr; prev</a>\n").arg(prevUrl);
@@ -256,12 +277,14 @@ QString dateNav(const Site& site, const ServerSnapshot& server, const QString& c
     return nav;
 }
 
-QString logLineHtml(int number, const QString& nick, const QString& text)
+// "ui" is the lang attribute for the English bits (the nick, our own stand-in
+// for a hidden message); the message text carries the page language.
+QString logLineHtml(int number, const QString& nick, const QString& text, const QString& ui)
 {
     const QString anchor = QStringLiteral("msg%1").arg(number);
     QString body;
     if (text == BLINDED_MARKER) {
-        body = QStringLiteral("<span class=\"blinded\">[blinded message]</span>");
+        body = QStringLiteral("<span class=\"blinded\"%1>[blinded message]</span>").arg(ui);
     } else if (text.startsWith(QStringLiteral("*** ")) && text.endsWith(QStringLiteral(" ***"))) {
         body = QStringLiteral("<span class=\"action\">%1</span>")
                    .arg(util::escapeAndLinkify(text.mid(4, text.size() - 8)));
@@ -271,10 +294,11 @@ QString logLineHtml(int number, const QString& nick, const QString& text)
     return QStringLiteral(
         "<div class=\"line\" id=\"%1\">"
         "<a class=\"ln\" href=\"#%1\">%2</a>"
-        "<span class=\"nick\" style=\"--h:%3\"><span class=\"nick-sep\">[</span>%4<span class=\"nick-sep\">] </span></span>"
-        "<span class=\"msg\">%5</span>"
+        "<span class=\"nick\" style=\"--h:%3\"%4><span class=\"nick-sep\">[</span>%5<span class=\"nick-sep\">] </span></span>"
+        "<span class=\"msg\">%6</span>"
         "</div>\n")
-        .arg(anchor, QString::number(number), QString::number(util::nickHue(nick)), esc(nick), body);
+        .arg(anchor, QString::number(number), QString::number(util::nickHue(nick)), ui,
+             esc(nick), body);
 }
 
 } // namespace
@@ -323,8 +347,9 @@ QString calendarPage(const Site& site, const ServerSnapshot& server, const QStri
 {
     QString content = channelHeader(site, server, channel, QString());
 
+    const QString ui = uiLang(site);
     const QDate today = util::currentLogDate();
-    QString quickNav = QStringLiteral("<div class=\"daynav\">\n");
+    QString quickNav = QStringLiteral("<div class=\"daynav\"%1>\n").arg(ui);
     if (store.dayExists(channel, today)) {
         quickNav += QStringLiteral("<a class=\"daynav-link\" href=\"/%1/%2/%3\">today</a>\n")
                         .arg(server.slug, channel, today.toString(QStringLiteral("yyyy/MM/dd")));
@@ -338,9 +363,9 @@ QString calendarPage(const Site& site, const ServerSnapshot& server, const QStri
 
     const QStringList years = store.years(channel);
     if (years.isEmpty()) {
-        content += QStringLiteral("<section class=\"panel\">No messages logged yet.</section>\n");
+        content += QStringLiteral("<section class=\"panel\"%1>No messages logged yet.</section>\n").arg(ui);
     } else {
-        content += QStringLiteral("<section class=\"panel arch\">\n");
+        content += QStringLiteral("<section class=\"panel arch\"%1>\n").arg(ui);
         for (auto yearIt = years.rbegin(); yearIt != years.rend(); ++yearIt) {
             const QList<MonthEntry> monthList = store.monthEntries(channel, *yearIt);
             int dayCount = 0;
@@ -383,9 +408,10 @@ QString yearPage(const Site& site, const ServerSnapshot& server, const QString& 
 
     const QList<MonthEntry> monthList = store.monthEntries(channel, year);
     if (monthList.isEmpty()) {
-        content += QStringLiteral("<section class=\"panel\">No logs for this year.</section>\n");
+        content += QStringLiteral("<section class=\"panel\"%1>No logs for this year.</section>\n")
+                       .arg(uiLang(site));
     } else {
-        content += QStringLiteral("<section class=\"panel arch\">\n");
+        content += QStringLiteral("<section class=\"panel arch\"%1>\n").arg(uiLang(site));
         for (auto it = monthList.rbegin(); it != monthList.rend(); ++it) {
             content += QStringLiteral("<a class=\"arch-row\" href=\"%1/%2/%3\">"
                                       "<span class=\"arch-name\">%3 <span class=\"month-name\">%4</span></span>"
@@ -428,9 +454,10 @@ QString monthPage(const Site& site, const ServerSnapshot& server, const QString&
 
     const QList<DayEntry> dayList = store.dayEntries(channel, year, month);
     if (dayList.isEmpty()) {
-        content += QStringLiteral("<section class=\"panel\">No logs for this month.</section>\n");
+        content += QStringLiteral("<section class=\"panel\"%1>No logs for this month.</section>\n")
+                       .arg(uiLang(site));
     } else {
-        content += QStringLiteral("<section class=\"panel arch\">\n");
+        content += QStringLiteral("<section class=\"panel arch\"%1>\n").arg(uiLang(site));
         for (auto it = dayList.rbegin(); it != dayList.rend(); ++it) {
             content += QStringLiteral("<a class=\"arch-row\" href=\"%1/%2/%3/%4\">"
                                       "<span class=\"arch-name\">%4</span>"
@@ -469,12 +496,14 @@ QString dayPage(const Site& site, const ServerSnapshot& server, const QString& c
 
     const QList<LogLine> lines = store.readDay(channel, date);
     if (lines.isEmpty()) {
-        content += QStringLiteral("<section class=\"panel\">No messages this day.</section>\n");
+        content += QStringLiteral("<section class=\"panel\"%1>No messages this day.</section>\n")
+                       .arg(uiLang(site));
     } else {
         content += QStringLiteral("<section class=\"log\">\n");
+        const QString ui = uiLang(site);
         int n = 0;
         for (const LogLine& line : lines) {
-            content += logLineHtml(++n, line.nick, line.text);
+            content += logLineHtml(++n, line.nick, line.text, ui);
         }
         content += QStringLiteral("</section>\n");
     }
@@ -492,6 +521,7 @@ QString searchPage(const Site& site, const ServerSnapshot& server, const QString
     QString content = channelHeader(site, server, channel, QStringLiteral("search"),
                                     year, month, day, from);
 
+    const QString ui = uiLang(site);
     const QString base = '/' + server.slug + '/' + channel;
 
     // Scoped-search navigation. Every date link keeps the query, the regexp flag
@@ -518,7 +548,7 @@ QString searchPage(const Site& site, const ServerSnapshot& server, const QString
     // Controls row: leave search (back to the reading page, or the channel root
     // when the origin is unknown) and climb one scope level up. Stays above the
     // status line; the narrowing date picker goes below it (see further down).
-    QString controls = QStringLiteral("<div class=\"search-nav-row controls\">\n");
+    QString controls = QStringLiteral("<div class=\"search-nav-row controls\"%1>\n").arg(ui);
     controls += QStringLiteral("<a class=\"daynav-link\" href=\"%1\">&larr; back to log</a>\n")
                     .arg(esc(from.isEmpty() ? base : from));
     if (!year.isEmpty()) {
@@ -569,7 +599,7 @@ QString searchPage(const Site& site, const ServerSnapshot& server, const QString
             status += QStringLiteral(", stopped by timeout");
         }
     }
-    content += QStringLiteral("<div class=\"search-status\">%1</div>\n").arg(status);
+    content += QStringLiteral("<div class=\"search-status\"%1>%2</div>\n").arg(ui, status);
 
     // Narrowing date picker, right under the status so the reader first sees
     // "N matches ... in /2024/08", then the dates offered within that scope -
@@ -597,9 +627,9 @@ QString searchPage(const Site& site, const ServerSnapshot& server, const QString
             }
         }
         if (!picks.isEmpty()) {
-            content += QStringLiteral("<div class=\"search-nav-row picker\">"
-                                      "<span class=\"daynav-label\">search a %1:</span>\n%2\n</div>\n")
-                           .arg(pickLabel, picks.join('\n'));
+            content += QStringLiteral("<div class=\"search-nav-row picker\"%1>"
+                                      "<span class=\"daynav-label\">search a %2:</span>\n%3\n</div>\n")
+                           .arg(ui, pickLabel, picks.join('\n'));
         }
     }
 
@@ -611,8 +641,9 @@ QString searchPage(const Site& site, const ServerSnapshot& server, const QString
                 content += QStringLiteral("</section>\n");
             }
             currentDate = hit.date;
-            content += QStringLiteral("<h2 class=\"search-date\"><a href=\"%1/%2\">%3</a></h2>\n<section class=\"log\">\n")
-                           .arg(base, hit.date.toString(QStringLiteral("yyyy/MM/dd")),
+            content += QStringLiteral("<h2 class=\"search-date\"%1><a href=\"%2/%3\">%4</a></h2>\n"
+                                      "<section class=\"log\">\n")
+                           .arg(ui, base, hit.date.toString(QStringLiteral("yyyy/MM/dd")),
                                 hit.date.toString(QStringLiteral("yyyy-MM-dd")));
             sectionOpen = true;
         }
@@ -622,11 +653,11 @@ QString searchPage(const Site& site, const ServerSnapshot& server, const QString
         content += QStringLiteral(
             "<div class=\"line\">"
             "<a class=\"ln\" href=\"%1\">%2</a>"
-            "<span class=\"nick\" style=\"--h:%3\"><span class=\"nick-sep\">[</span>%4<span class=\"nick-sep\">] </span></span>"
-            "<span class=\"msg\">%5</span>"
+            "<span class=\"nick\" style=\"--h:%3\"%4><span class=\"nick-sep\">[</span>%5<span class=\"nick-sep\">] </span></span>"
+            "<span class=\"msg\">%6</span>"
             "</div>\n")
                        .arg(lineUrl, QString::number(hit.lineNumber),
-                            QString::number(util::nickHue(hit.nick)), esc(hit.nick),
+                            QString::number(util::nickHue(hit.nick)), ui, esc(hit.nick),
                             util::escapeAndLinkify(hit.text));
     }
     if (sectionOpen) {
@@ -642,7 +673,7 @@ QString livePage(const Site& site, const ServerSnapshot& server, const QString& 
     QString content = channelHeader(site, server, channel,
                                     QStringLiteral("<span class=\"live-badge\">live</span>"));
 
-    QString nav = QStringLiteral("<div class=\"daynav\">\n");
+    QString nav = QStringLiteral("<div class=\"daynav\"%1>\n").arg(uiLang(site));
     // live.js points it to the page the reader came from (same-origin referrer);
     // the channel archive is the no-referrer fallback
     nav += QStringLiteral("<a class=\"daynav-link\" id=\"live-back\" href=\"/%1/%2\">&larr; back</a>\n")

@@ -22,6 +22,12 @@ desperately.
   password for all servers), `triggers{}` (request -> answer) and `servers[]`
   (name, address, port, optional `ssl`, channels, per-server overrides).
   Keys starting with `_` are ignored and can be used as comments.
+- **Per-channel language**: a `channels[]` entry is either `"#name"` or
+  `{"name": "#name", "lang": "ru"}`. The tag (default `en`) becomes the
+  `<html lang>` of that channel's log pages, so a browser offers to translate a
+  chat known to be held in that language; the interface and the nicks are marked
+  `lang="en"` and stay untouched. A channel object with a missing `name`, an
+  unknown key or a malformed language tag stops the service at startup.
 - **URL scheme is compatible with v1/v2**: old links to
   `/<server>/<channel>/yyyy/MM/dd` (and `.txt`), `/~realtime/...`, `/~images/...`
   keep working.

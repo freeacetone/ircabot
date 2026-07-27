@@ -12,6 +12,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRegularExpression>
 
 #include <stdexcept>
 
@@ -49,7 +50,70 @@ int lineNumberAt(const QByteArray& raw, int offset)
     return static_cast<int>(raw.left(offset).count('\n')) + 1;
 }
 
+// One entry of "channels": either a bare "#name" string or an object
+// {"name": "#name", "lang": "ru"}. A malformed object is a configuration
+// mistake that would silently change what the service does, so it stops the
+// service at startup instead of being papered over with a default.
+ChannelConfig readChannel(const QJsonValue& value, const QString& context)
+{
+    ChannelConfig channel;
+    if (value.isString()) {
+        channel.name = value.toString();
+    } else if (value.isObject()) {
+        const QJsonObject obj = value.toObject();
+        for (auto it = obj.constBegin(); it != obj.constEnd(); ++it) {
+            if (it.key().startsWith('_')) { // "_comment" and friends
+                continue;
+            }
+            if (it.key() != QStringLiteral("name") && it.key() != QStringLiteral("lang")) {
+                throw std::runtime_error(
+                    ("[" + context + "] Channel entry has an unknown key '" + it.key()
+                     + "': only 'name' and 'lang' are allowed").toStdString());
+            }
+        }
+        channel.name = obj.value(QStringLiteral("name")).toString();
+        if (channel.name.trimmed().isEmpty()) {
+            throw std::runtime_error(
+                ("[" + context + "] Channel entry without a 'name'").toStdString());
+        }
+        if (obj.contains(QStringLiteral("lang"))) {
+            channel.lang = obj.value(QStringLiteral("lang")).toString().trimmed();
+            // Anything that is not a plain language tag would land verbatim in
+            // <html lang> and quietly switch the browser translator off instead
+            // of on, so it is rejected here rather than shipped to the page.
+            static const QRegularExpression tag(
+                QStringLiteral("^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})*$"));
+            if (!tag.match(channel.lang).hasMatch()) {
+                throw std::runtime_error(
+                    ("[" + context + "] Channel '" + channel.name + "' has an invalid 'lang' value '"
+                     + channel.lang + "': expected a language tag such as 'en', 'ru' or 'pt-BR'")
+                        .toStdString());
+            }
+        }
+    } else {
+        throw std::runtime_error(
+            ("[" + context + "] Channel entry must be a string or an object like "
+             "{\"name\": \"#chat\", \"lang\": \"ru\"}").toStdString());
+    }
+
+    channel.name.remove(' ');
+    if (!channel.name.isEmpty() && !channel.name.startsWith('#')) {
+        channel.name.prepend('#');
+    }
+    return channel;
+}
+
 } // namespace
+
+QStringList channelNames(const QList<ChannelConfig>& channels)
+{
+    QStringList names;
+    names.reserve(channels.size());
+    for (const ChannelConfig& channel : channels) {
+        names.push_back(channel.name);
+    }
+    return names;
+}
 
 QString Config::exampleText()
 {
@@ -101,11 +165,12 @@ QString Config::exampleText()
     "servers": [
         {
             "_comment": "nick, user, real_name, password and triggers can be overridden per server",
+            "_comment_channels": "A channel is \"#name\" or {\"name\": \"#name\", \"lang\": \"ru\"}. lang (default en) becomes the <html lang> of that channel's log pages, so a browser can offer to translate a chat held in that language",
             "name": "Displayed server name",
             "address": "127.0.0.1",
             "port": 6667,
             "ssl": false,
-            "channels": ["#general", "#test"]
+            "channels": ["#general", {"name": "#test", "lang": "ru"}]
         }
     ]
 }
@@ -243,15 +308,11 @@ void Config::parse(const QByteArray& raw)
 
         const QJsonArray channels = s.value(QStringLiteral("channels")).toArray();
         for (const QJsonValue& chValue : channels) {
-            QString ch = chValue.toString();
-            ch.remove(' ');
-            if (ch.isEmpty()) {
-                continue;
+            const ChannelConfig channel = readChannel(chValue, srv.displayName);
+            if (channel.name.isEmpty()) {
+                continue; // an empty string entry, ignored as it always was
             }
-            if (!ch.startsWith('#')) {
-                ch.prepend('#');
-            }
-            srv.channels.push_back(ch);
+            srv.channels.push_back(channel);
         }
         if (srv.channels.isEmpty()) {
             qWarning().noquote() << "[" + srv.displayName + "] ignored (empty 'channels')";

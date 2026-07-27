@@ -352,7 +352,9 @@ void WebUi::setupRoutes()
                     return html(render::errorPage(site, QStringLiteral("404"), QStringLiteral("No such channel")),
                                 QHttpServerResponse::StatusCode::NotFound);
                 }
-                return html(render::livePage(site, server, channel));
+                render::Site chanSite = site;
+                chanSite.lang = server.byChannel.value(channel).lang;
+                return html(render::livePage(chanSite, server, channel));
             });
         });
 
@@ -415,11 +417,15 @@ void WebUi::setupRoutes()
     });
 }
 
-QHttpServerResponse WebUi::servePage(const render::Site& site,
+QHttpServerResponse WebUi::servePage(const render::Site& baseSite,
                                      const QString& slug, const QString& channel,
                                      const QString& year, const QString& month, const QString& dayRaw,
                                      const QUrlQuery& query)
 {
+    // Filled in with the channel's own language once the channel is known, so
+    // every page of its archive declares it; the error pages below stay English.
+    render::Site site = baseSite;
+
     // A .txt day log is a raw-log grab, not a page view: give it its own tally
     // so the main-page breakdown does not fold plain-text hits into html.
     QString day = dayRaw;
@@ -431,8 +437,10 @@ QHttpServerResponse WebUi::servePage(const render::Site& site,
         m_state->countRequest();
     }
 
-    const auto notFound = [&site](const QString& what) {
-        return html(render::errorPage(site, QStringLiteral("404"), what),
+    // Error pages carry no log text, so they stay English whatever the channel
+    // speaks: baseSite, not the language-tagged copy below.
+    const auto notFound = [&baseSite](const QString& what) {
+        return html(render::errorPage(baseSite, QStringLiteral("404"), what),
                     QHttpServerResponse::StatusCode::NotFound);
     };
 
@@ -444,6 +452,7 @@ QHttpServerResponse WebUi::servePage(const render::Site& site,
     if (!server.channels.contains(channel) || !safeSegment(channel)) {
         return notFound(QStringLiteral("No such channel: ") + channel);
     }
+    site.lang = server.byChannel.value(channel).lang;
     const LogStore& store = *m_stores[slug];
 
     // The date segments select the day to render and also scope a search, so

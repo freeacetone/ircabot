@@ -36,6 +36,12 @@
         }
     }
 
+    // On a page rendered in the channel's language the nicks are still English
+    // and are marked as such, exactly as the server does for the archive pages,
+    // so a browser translator does not rewrite them.
+    var pageLang = (document.documentElement.lang || "en").toLowerCase();
+    var markNickEnglish = !(pageLang === "en" || pageLang.indexOf("en-") === 0);
+
     var lastId = 0;
     var networkOk = true;
     var polling = false; // a request is in flight: never overlap, or lastId
@@ -71,6 +77,7 @@
         var nick = document.createElement("span");
         nick.className = "nick";
         nick.style.setProperty("--h", msg.hue); // theme decides the rest
+        if (markNickEnglish) nick.lang = "en";
         // Invisible, copyable "[" and "] " around the nick so a copied line
         // matches the .txt log format "[nick] message" (the visible "> " prompt
         // is a CSS ::after and is never copied).

@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "Config.h"
+
 #include <QDate>
 #include <QHash>
 #include <QList>
@@ -25,6 +27,7 @@ struct ChannelSnapshot
 {
     QStringList online;   // sorted, with mode prefixes
     QString topic;
+    QString lang;         // BCP47 tag from the config, "en" unless overridden
 };
 
 struct ServerSnapshot
@@ -45,7 +48,8 @@ class RuntimeState
 public:
     static constexpr int LIVE_CACHE_SIZE = 50;
 
-    void registerServer(const QString& displayName, const QString& slug, const QStringList& channels);
+    void registerServer(const QString& displayName, const QString& slug,
+                        const QList<ChannelConfig>& channels);
 
     // IRC-side updates (channel without '#')
     void setConnected(const QString& slug, bool connected);

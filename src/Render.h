@@ -24,6 +24,13 @@ struct Site
 
     QString theme; // "dark", "light" or empty (auto, from prefers-color-scheme)
     QString path;  // request path, used as "back" target by the theme switcher
+
+    // Language of the page content, straight into <html lang>. A channel's log
+    // pages carry that channel's configured language so a browser can offer to
+    // translate them; every other page is English. On a non-English page the
+    // English parts of the interface are marked lang="en" one by one, so a
+    // translator leaves the chrome and the nicks alone.
+    QString lang = QStringLiteral("en");
 };
 
 struct PageRef // what is highlighted in the sidebar

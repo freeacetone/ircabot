@@ -209,8 +209,8 @@ void IrcClient::onWatchdog()
 
 void IrcClient::onNamesRefresh()
 {
-    for (const QString& ch : m_config.channels) {
-        send("NAMES " + ch, false);
+    for (const ChannelConfig& ch : m_config.channels) {
+        send("NAMES " + ch.name, false);
     }
 }
 
@@ -332,9 +332,9 @@ void IrcClient::onRegistered()
 
 void IrcClient::onEnsureJoined()
 {
-    for (const QString& ch : m_config.channels) {
-        if (!m_joined.contains(ch.toLower())) {
-            send("JOIN " + ch);
+    for (const ChannelConfig& ch : m_config.channels) {
+        if (!m_joined.contains(ch.name.toLower())) {
+            send("JOIN " + ch.name);
         }
     }
 }
@@ -778,7 +778,8 @@ void IrcClient::onVoiceGateTick()
     const qint64 delayMs = static_cast<qint64>(m_voiceGate->config().connectDelaySeconds) * 1000;
     const QString me = currentNick();
 
-    for (const QString& ch : m_config.channels) {
+    for (const ChannelConfig& channel : m_config.channels) {
+        const QString& ch = channel.name;
         if (!m_joined.contains(ch.toLower())) {
             continue;
         }

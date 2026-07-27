@@ -9,16 +9,20 @@
 
 namespace ircabot {
 
-void RuntimeState::registerServer(const QString& displayName, const QString& slug, const QStringList& channels)
+void RuntimeState::registerServer(const QString& displayName, const QString& slug,
+                                  const QList<ChannelConfig>& channels)
 {
     const QWriteLocker locker(&m_lock);
     ServerEntry& entry = m_servers[slug];
     entry.data.displayName = displayName;
     entry.data.slug = slug;
-    for (QString ch : channels) {
+    for (const ChannelConfig& channel : channels) {
+        QString ch = channel.name;
         ch.remove('#');
         entry.data.channels.push_back(ch);
-        entry.data.byChannel.insert(ch, {});
+        ChannelSnapshot snapshot;
+        snapshot.lang = channel.lang;
+        entry.data.byChannel.insert(ch, snapshot);
     }
     if (!m_order.contains(slug)) {
         m_order.push_back(slug);

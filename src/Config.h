@@ -12,6 +12,15 @@
 
 namespace ircabot {
 
+// One logged channel. The language tag becomes the <html lang> of that
+// channel's log pages, so a browser can offer to translate a chat that is
+// known to be held in one language; the interface itself stays English.
+struct ChannelConfig
+{
+    QString name;                        // with leading '#'
+    QString lang = QStringLiteral("en"); // BCP47 tag, "en" unless overridden
+};
+
 struct ServerConfig
 {
     QString displayName;   // "name" field, e.g. "Ilita IRC"
@@ -19,7 +28,7 @@ struct ServerConfig
     QString address;
     quint16 port = 0;
     bool ssl = false;
-    QStringList channels;  // with leading '#'
+    QList<ChannelConfig> channels;
     QString nick;
     QString user;
     QString realName;
@@ -40,6 +49,10 @@ struct VoiceGateConfig
     QString captchaUrl;           // public base URL for the PM link; empty -> derive
     QString privateMessage;       // captcha PM body; the link is appended after it
 };
+
+// Channel names alone, in config order, for the consumers that have no use for
+// the per-channel language (the log store, the JOIN/NAMES loops).
+QStringList channelNames(const QList<ChannelConfig>& channels);
 
 // JSON configuration file.
 // Top-level keys: data_path, web{}, defaults{}, triggers{}, servers[].
