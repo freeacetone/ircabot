@@ -640,6 +640,8 @@ body { overflow: hidden; } /* the page itself never scrolls */
     cursor: pointer;
 }
 .captcha-submit:hover { background: var(--amber-bright); }
+a.captcha-submit { display: block; text-align: center; text-decoration: none; }
+a.captcha-submit:hover { color: var(--bg-deep); }
 
 .captcha-note { font-size: 13px; margin: 0 0 12px; }
 .captcha-note.ok  { color: var(--green); }

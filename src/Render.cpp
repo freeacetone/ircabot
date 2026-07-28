@@ -88,7 +88,7 @@ QString sidebar(const Site& site, const PageRef& ref)
         html += QStringLiteral("</div>\n");
     }
     html += themeSwitcher(site);
-    html += QStringLiteral("<a class=\"side-foot\" href=\"%1\" rel=\"nofollow noopener\" target=\"_blank\">IRCaBot %2<br>GPLv3 &copy; acetone, %3</a>\n")
+    html += QStringLiteral("<a class=\"side-foot\" href=\"%1\" rel=\"nofollow noopener noreferrer\" target=\"_blank\">IRCaBot %2<br>GPLv3 &copy; acetone, %3</a>\n")
                 .arg(QString::fromUtf8(SOURCE_URL), QString::fromUtf8(VERSION), QString::fromUtf8(COPYRIGHT_YEARS));
     html += QStringLiteral("</div>\n</nav>\n");
     return html;
@@ -248,12 +248,35 @@ QString breadcrumbs(const QString& base, const QString& year,
     return html;
 }
 
+struct JumpTarget
+{
+    QString url;
+    QString label;
+};
+
+// Quick jump to the freshest log: today's when there is one, otherwise the
+// newest logged day, so a channel quiet today still offers a way to the end of
+// its archive. Empty for a channel with no logs, or on the target day itself.
+JumpTarget latestJump(const LogStore& store, const QString& channel, const QString& base,
+                      const QDate& current = QDate())
+{
+    const QDate today = util::currentLogDate();
+    const bool haveToday = store.dayExists(channel, today);
+    const QDate target = haveToday ? today : store.lastDay(channel);
+    if (!target.isValid() || target == current) {
+        return {};
+    }
+    return {base + '/' + target.toString(QStringLiteral("yyyy/MM/dd")),
+            haveToday ? QStringLiteral("today") : QStringLiteral("last")};
+}
+
 // Uniform archive nav bar for the year, month and day pages: prev / breadcrumbs
-// / next / today / [.txt] / live. Missing prev/next render as disabled stubs so
-// the bar keeps the same shape at every level; empty today/txt are just omitted.
+// / next / today|last / [.txt] / live. Missing prev/next render as disabled
+// stubs so the bar keeps the same shape at every level; an empty jump/txt is
+// just omitted.
 QString dateNav(const Site& site, const ServerSnapshot& server, const QString& channel,
                 const QString& prevUrl, const QString& nextUrl, const QString& crumbs,
-                const QString& todayUrl, const QString& txtUrl)
+                const JumpTarget& jump, const QString& txtUrl)
 {
     QString nav = QStringLiteral("<div class=\"daynav\"%1>\n").arg(uiLang(site));
     nav += prevUrl.isEmpty()
@@ -263,8 +286,8 @@ QString dateNav(const Site& site, const ServerSnapshot& server, const QString& c
     nav += nextUrl.isEmpty()
                ? QStringLiteral("<span class=\"daynav-link disabled\">next &rarr;</span>\n")
                : QStringLiteral("<a class=\"daynav-link\" href=\"%1\">next &rarr;</a>\n").arg(nextUrl);
-    if (!todayUrl.isEmpty()) {
-        nav += QStringLiteral("<a class=\"daynav-link\" href=\"%1\">today</a>\n").arg(todayUrl);
+    if (!jump.url.isEmpty()) {
+        nav += QStringLiteral("<a class=\"daynav-link\" href=\"%1\">%2</a>\n").arg(jump.url, jump.label);
     }
     if (!txtUrl.isEmpty()) {
         nav += QStringLiteral("<a class=\"daynav-link\" href=\"%1\">.txt</a>\n").arg(txtUrl);
@@ -348,11 +371,11 @@ QString calendarPage(const Site& site, const ServerSnapshot& server, const QStri
     QString content = channelHeader(site, server, channel, QString());
 
     const QString ui = uiLang(site);
-    const QDate today = util::currentLogDate();
+    const JumpTarget jump = latestJump(store, channel, '/' + server.slug + '/' + channel);
     QString quickNav = QStringLiteral("<div class=\"daynav\"%1>\n").arg(ui);
-    if (store.dayExists(channel, today)) {
-        quickNav += QStringLiteral("<a class=\"daynav-link\" href=\"/%1/%2/%3\">today</a>\n")
-                        .arg(server.slug, channel, today.toString(QStringLiteral("yyyy/MM/dd")));
+    if (!jump.url.isEmpty()) {
+        quickNav += QStringLiteral("<a class=\"daynav-link\" href=\"%1\">%2</a>\n")
+                        .arg(jump.url, jump.label);
     }
     if (!site.realtimeDisabled) {
         quickNav += QStringLiteral("<a class=\"daynav-link live\" href=\"/~realtime/%1/%2\">live</a>\n")
@@ -400,11 +423,8 @@ QString yearPage(const Site& site, const ServerSnapshot& server, const QString& 
     const int yi = allYears.indexOf(year);
     const QString prevUrl = (yi > 0) ? base + '/' + allYears[yi - 1] : QString();
     const QString nextUrl = (yi >= 0 && yi + 1 < allYears.size()) ? base + '/' + allYears[yi + 1] : QString();
-    const QDate today = util::currentLogDate();
-    const QString todayUrl = store.dayExists(channel, today)
-        ? base + '/' + today.toString(QStringLiteral("yyyy/MM/dd")) : QString();
     content += dateNav(site, server, channel, prevUrl, nextUrl,
-                       breadcrumbs(base, year), todayUrl, QString());
+                       breadcrumbs(base, year), latestJump(store, channel, base), QString());
 
     const QList<MonthEntry> monthList = store.monthEntries(channel, year);
     if (monthList.isEmpty()) {
@@ -446,11 +466,8 @@ QString monthPage(const Site& site, const ServerSnapshot& server, const QString&
     const int mi = ymTokens.indexOf(year + '/' + month);
     const QString prevUrl = (mi > 0) ? base + '/' + ymTokens[mi - 1] : QString();
     const QString nextUrl = (mi >= 0 && mi + 1 < ymTokens.size()) ? base + '/' + ymTokens[mi + 1] : QString();
-    const QDate today = util::currentLogDate();
-    const QString todayUrl = store.dayExists(channel, today)
-        ? base + '/' + today.toString(QStringLiteral("yyyy/MM/dd")) : QString();
     content += dateNav(site, server, channel, prevUrl, nextUrl,
-                       breadcrumbs(base, year, month), todayUrl, QString());
+                       breadcrumbs(base, year, month), latestJump(store, channel, base), QString());
 
     const QList<DayEntry> dayList = store.dayEntries(channel, year, month);
     if (dayList.isEmpty()) {
@@ -483,15 +500,13 @@ QString dayPage(const Site& site, const ServerSnapshot& server, const QString& c
     const QString base = '/' + server.slug + '/' + channel;
     const QDate prev = store.adjacentDay(channel, date, false);
     const QDate next = store.adjacentDay(channel, date, true);
-    const QDate today = util::currentLogDate();
     const QString ymd = date.toString(QStringLiteral("yyyy/MM/dd"));
     const QString prevUrl = prev.isValid() ? base + '/' + prev.toString(QStringLiteral("yyyy/MM/dd")) : QString();
     const QString nextUrl = next.isValid() ? base + '/' + next.toString(QStringLiteral("yyyy/MM/dd")) : QString();
-    const QString todayUrl = (date != today && store.dayExists(channel, today))
-        ? base + '/' + today.toString(QStringLiteral("yyyy/MM/dd")) : QString();
     const QString crumbs = breadcrumbs(base, date.toString(QStringLiteral("yyyy")),
                                        date.toString(QStringLiteral("MM")), date.toString(QStringLiteral("dd")));
-    content += dateNav(site, server, channel, prevUrl, nextUrl, crumbs, todayUrl,
+    content += dateNav(site, server, channel, prevUrl, nextUrl, crumbs,
+                       latestJump(store, channel, base, date),
                        base + '/' + ymd + QStringLiteral(".txt"));
 
     const QList<LogLine> lines = store.readDay(channel, date);
@@ -742,6 +757,29 @@ QString captchaPage(const Site& site, const QString& server, const QString& serv
                      "</form>\n")
                      .arg(esc(server), esc(nick), esc(hostHash), esc(nonce));
     }
+    modal += QStringLiteral("</section>\n</div>\n");
+
+    return page(site, {}, QStringLiteral("IRC voice gate"), modal, QString(), QStringLiteral("captcha-main"));
+}
+
+QString captchaBlockedPage(const Site& site, const QString& server, const QString& nick,
+                           const QString& hostHash, int secondsLeft)
+{
+    const QString url = QStringLiteral("/~captcha/%1/%2/%3")
+                            .arg(esc(server), esc(nick), esc(hostHash));
+
+    QString modal;
+    modal += QStringLiteral("<div class=\"modal-backdrop\">\n<section class=\"modal captcha-modal\">\n");
+    modal += QStringLiteral("<h1 class=\"glow\">IRC voice gate</h1>\n");
+    modal += QStringLiteral("<p class=\"captcha-note err\">Too many wrong answers. This address is "
+                            "blocked for %1 second%2.</p>\n")
+                 .arg(secondsLeft)
+                 .arg(secondsLeft == 1 ? QString() : QStringLiteral("s"));
+    modal += QStringLiteral("<p class=\"captcha-sub\">Wait for the block to run out, then ask for a "
+                            "fresh code.</p>\n");
+    modal += QStringLiteral("<a class=\"captcha-submit\" href=\"%1\">Get a new captcha</a>\n").arg(url);
+    modal += QStringLiteral("<p class=\"captcha-foot\"><a href=\"/%1\">[back to logs]</a></p>\n")
+                 .arg(esc(server));
     modal += QStringLiteral("</section>\n</div>\n");
 
     return page(site, {}, QStringLiteral("IRC voice gate"), modal, QString(), QStringLiteral("captcha-main"));

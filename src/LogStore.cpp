@@ -147,6 +147,24 @@ bool LogStore::dayExists(const QString& channel, const QDate& date) const
     return QFile::exists(dayPath(channel, date));
 }
 
+QDate LogStore::lastDay(const QString& channel) const
+{
+    const QStringList yearList = years(channel);
+    for (auto y = yearList.rbegin(); y != yearList.rend(); ++y) {
+        const QStringList monthList = months(channel, *y);
+        for (auto m = monthList.rbegin(); m != monthList.rend(); ++m) {
+            const QStringList dayList = days(channel, *y, *m);
+            for (auto d = dayList.rbegin(); d != dayList.rend(); ++d) {
+                const QDate date(y->toInt(), m->toInt(), d->toInt());
+                if (date.isValid()) {
+                    return date;
+                }
+            }
+        }
+    }
+    return QDate();
+}
+
 QDate LogStore::adjacentDay(const QString& channel, const QDate& from, bool forward) const
 {
     // Walk the on-disk date index instead of probing day by day:

@@ -37,6 +37,39 @@ constexpr const char* DEFAULT_MAIN_PAGE =
 constexpr const char* THEME_COOKIE = "ircabot_theme";
 constexpr int CAPTCHA_TTL_SEC = 600;
 
+// QHttpServer buffers a whole request in RAM before routing it and has no size
+// limit of its own. The only body the service accepts is a captcha form.
+constexpr qint64 MAX_REQUEST_BYTES = 64 * 1024;
+
+class BoundedTcpServer : public QTcpServer
+{
+public:
+    using QTcpServer::QTcpServer;
+
+protected:
+    void incomingConnection(qintptr socketDescriptor) override
+    {
+        auto* socket = new QTcpSocket(this);
+        if (!socket->setSocketDescriptor(socketDescriptor)) {
+            delete socket;
+            return;
+        }
+        // Reset on every response: a keep-alive connection (the live page polls
+        // for hours) must not accumulate its way into the cap.
+        const auto received = std::make_shared<qint64>(0);
+        connect(socket, &QIODevice::readyRead, socket, [socket, received] {
+            *received += socket->bytesAvailable();
+            if (*received > MAX_REQUEST_BYTES) {
+                socket->abort();
+            }
+        });
+        connect(socket, &QIODevice::bytesWritten, socket, [received](qint64) {
+            *received = 0;
+        });
+        addPendingConnection(socket);
+    }
+};
+
 // Path segments come from the network: never let them reach the filesystem raw
 bool safeSegment(const QString& s)
 {
@@ -48,11 +81,21 @@ bool safeSegment(const QString& s)
 // if it is a local absolute path: it must start with '/' but not "//" or "/\".
 // Browsers fold '\' to '/', so both of those resolve to a scheme-relative URL -
 // an open redirect / off-site jump when used as a link or Location header.
+// Space and control characters are rejected too: a browser strips tab, CR and LF
+// from a URL before parsing it, so "/<tab>/evil.com" becomes "//evil.com".
 bool isLocalPath(const QString& path)
 {
-    return path.startsWith('/')
-        && !path.startsWith(QStringLiteral("//"))
-        && !path.startsWith(QStringLiteral("/\\"));
+    if (!path.startsWith('/')
+        || path.startsWith(QStringLiteral("//"))
+        || path.startsWith(QStringLiteral("/\\"))) {
+        return false;
+    }
+    for (const QChar c : path) {
+        if (c.unicode() <= 0x20 || c.unicode() == 0x7F) {
+            return false;
+        }
+    }
+    return true;
 }
 
 // A captcha nick may be non-ASCII (Cyrillic, ...). It is HTML-escaped in the
@@ -71,6 +114,28 @@ bool safeNick(const QString& s)
         }
     }
     return true;
+}
+
+// Client identity for the captcha limiter. Behind an I2P server tunnel there is
+// no IP: i2pd stamps the caller's destination instead, and a client cannot forge
+// those headers past the tunnel. Normalized to the bare 52-char base32 hash, so
+// that is the whole key the limiter stores. The peer-address fallback only holds
+// when the service is reached directly, which it is not meant to be.
+QString clientAddress(const QHttpServerRequest& request)
+{
+    static const QRegularExpression b32(
+        QStringLiteral("^([a-z2-7]{52})(\\.b32\\.i2p)?$"), QRegularExpression::CaseInsensitiveOption);
+
+    const QHttpHeaders headers = request.headers();
+    for (const char* name : {"X-I2P-DestB32", "X-I2P-DestHash"}) {
+        const QString value =
+            QString::fromLatin1(headers.value(QAnyStringView(name)).toByteArray().trimmed());
+        const QRegularExpressionMatch match = b32.match(value);
+        if (match.hasMatch()) {
+            return match.captured(1).toLower();
+        }
+    }
+    return request.remoteAddress().toString();
 }
 
 // The style sheet and live.js live in the binary's Qt resources; read each one
@@ -165,7 +230,7 @@ WebUi::WebUi(const Config& config, RuntimeState* state,
 
 bool WebUi::listen()
 {
-    auto tcpServer = std::make_unique<QTcpServer>();
+    auto tcpServer = std::make_unique<BoundedTcpServer>();
     if (!tcpServer->listen(QHostAddress(m_bindAddress), m_bindPort)) {
         qCritical().noquote() << "Web interface: can't listen on"
                               << m_bindAddress + ':' + QString::number(m_bindPort)
@@ -311,8 +376,9 @@ void WebUi::setupRoutes()
                               const QHttpServerRequest& request) {
             const bool isPost = request.method() == QHttpServerRequest::Method::Post;
             const QByteArray body = request.body();
-            return QtConcurrent::run([this, server, nick, hostHash, isPost, body, site = siteFor(request)] {
-                return serveCaptcha(site, server, nick, hostHash, isPost, body);
+            return QtConcurrent::run([this, server, nick, hostHash, isPost, body,
+                                      client = clientAddress(request), site = siteFor(request)] {
+                return serveCaptcha(site, server, nick, hostHash, isPost, body, client);
             });
         });
     }
@@ -552,7 +618,7 @@ QHttpServerResponse WebUi::serveApi(const QString& slug, const QString& channel,
 
 QHttpServerResponse WebUi::serveCaptcha(const render::Site& site, const QString& server,
                                         const QString& nick, const QString& hostHash,
-                                        bool isPost, const QByteArray& body)
+                                        bool isPost, const QByteArray& body, const QString& client)
 {
     m_state->countRequest();
 
@@ -565,6 +631,17 @@ QHttpServerResponse WebUi::serveCaptcha(const render::Site& site, const QString&
         return html(render::errorPage(site, QStringLiteral("400"), QStringLiteral("Bad request")),
                     QHttpServerResponse::StatusCode::BadRequest);
     }
+
+    // Before anything else: a blocked client costs neither a disk lookup nor a
+    // drawn captcha.
+    const auto blockedPage = [&](int seconds) {
+        return html(render::captchaBlockedPage(site, server, nick, hostHash, seconds),
+                    QHttpServerResponse::StatusCode::TooManyRequests);
+    };
+    if (const int left = m_captchaLimiter.blockedFor(client); left > 0) {
+        return blockedPage(left);
+    }
+
     bool found = false;
     const ServerSnapshot snap = m_state->snapshot(server, &found);
     if (!found) {
@@ -619,12 +696,16 @@ QHttpServerResponse WebUi::serveCaptcha(const render::Site& site, const QString&
         const QString nonce = form.queryItemValue(QStringLiteral("nonce"), QUrl::FullyDecoded);
         const QString answer = form.queryItemValue(QStringLiteral("answer"), QUrl::FullyDecoded);
         if (m_captcha.verify(identity, nonce, answer)) {
+            m_captchaLimiter.forget(client);
             m_voiceGate->reportSolved(server, nick, hostHash);
             return html(render::captchaPage(
                 site, server, serverName, nick, hostHash, QString(), QString(),
                 QStringLiteral("Correct. You will be voiced on moderated channels in ") + serverName
                     + QStringLiteral(" shortly."),
                 true));
+        }
+        if (const int blocked = m_captchaLimiter.registerFailure(client); blocked > 0) {
+            return blockedPage(blocked);
         }
         const Captcha::Challenge c = m_captcha.issue(identity, length, CAPTCHA_TTL_SEC);
         return html(render::captchaPage(site, server, serverName, nick, hostHash, c.answer, c.nonce,

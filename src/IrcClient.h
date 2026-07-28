@@ -97,6 +97,10 @@ private:
     static constexpr int SEND_BURST = 6;              // ...after an initial burst
     static constexpr int PM_REPLY_COOLDOWN_MS = 8000; // per-sender PM reply throttle
 
+    // RFC 1459 caps a message at 512 bytes, IRCv3 tags at 8191. Anything past
+    // this is not a line any more, just a peer growing our buffer.
+    static constexpr qsizetype MAX_LINE_BYTES = 64 * 1024;
+
     ServerConfig m_config;
     RuntimeState* m_state;
     LogStore* m_store;

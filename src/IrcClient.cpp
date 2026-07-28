@@ -99,6 +99,7 @@ void IrcClient::start()
         m_socket->deleteLater();
     }
     m_socket = new QSslSocket(this);
+    m_socket->setReadBufferSize(MAX_LINE_BYTES * 4);
     m_buffer.clear();
     m_registered = false;
     m_keepAliveSent = false;
@@ -199,6 +200,14 @@ void IrcClient::onReadyRead()
             continue;
         }
         processLine(QString::fromUtf8(rawLine));
+    }
+
+    if (m_buffer.size() > MAX_LINE_BYTES) {
+        consoleLog("Server sent " + QString::number(m_buffer.size())
+                   + " bytes without a line break, dropping the connection");
+        m_buffer.clear();
+        m_socket->abort();
+        onDisconnected();
     }
 }
 

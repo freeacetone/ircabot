@@ -64,4 +64,9 @@ QString captchaPage(const Site& site, const QString& server, const QString& serv
                     const QString& nick, const QString& hostHash, const QString& answer,
                     const QString& nonce, const QString& message, bool success);
 
+// Shown instead of a challenge while the client is rate limited: no image is
+// drawn, only the wait and a link back to a fresh captcha.
+QString captchaBlockedPage(const Site& site, const QString& server, const QString& nick,
+                           const QString& hostHash, int secondsLeft);
+
 } // namespace ircabot::render

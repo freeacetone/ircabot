@@ -47,6 +47,8 @@ add_executable(ircabot
     src/LogCache.h
     src/LogStore.cpp
     src/LogStore.h
+    src/RateLimit.cpp
+    src/RateLimit.h
     src/Render.cpp
     src/Render.h
     src/State.cpp
