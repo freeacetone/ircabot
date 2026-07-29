@@ -72,7 +72,7 @@ QString escapeAndLinkify(const QString& text)
         }
         const qsizetype start = m.capturedStart(1);
         result += escaped.mid(last, start - last);
-        result += QStringLiteral("<a href=\"%1\" rel=\"nofollow noopener\" target=\"_blank\">%1</a>").arg(url);
+        result += QStringLiteral("<a href=\"%1\" rel=\"nofollow noopener noreferrer\" target=\"_blank\">%1</a>").arg(url);
         last = start + url.size();
     }
     result += escaped.mid(last);

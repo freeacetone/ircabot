@@ -62,6 +62,56 @@
         status.className = networkOk ? "live-dots" : "live-dots bad";
     }
 
+    // Same rule the server applies to the archive pages: http/https only,
+    // trailing punctuation dropped, nothing shorter than "http://x.io". Built
+    // as nodes rather than markup, so the text can never become HTML.
+    function appendLinkified(parent, text) {
+        var rgx = /https?:\/\/[^\s<>]+/g;
+        var last = 0;
+        var match;
+        while ((match = rgx.exec(text)) !== null) {
+            var url = match[0];
+            while (url && ".,;:!?)".indexOf(url.charAt(url.length - 1)) !== -1) {
+                url = url.slice(0, -1);
+            }
+            if (url.length < 11) continue;
+            if (match.index > last) {
+                parent.appendChild(document.createTextNode(text.slice(last, match.index)));
+            }
+            var link = document.createElement("a");
+            link.href = url;
+            link.rel = "nofollow noopener noreferrer";
+            link.target = "_blank";
+            link.textContent = url;
+            parent.appendChild(link);
+            last = match.index + url.length;
+        }
+        if (last < text.length) {
+            parent.appendChild(document.createTextNode(text.slice(last)));
+        }
+    }
+
+    // Mirrors the archive renderer: a blinded message and a /me action get the
+    // same stand-in and styling here as they do on a static day page.
+    function appendBody(parent, text) {
+        if (text === "Blinded message") {
+            var blinded = document.createElement("span");
+            blinded.className = "blinded";
+            if (markNickEnglish) blinded.lang = "en";
+            blinded.textContent = "[blinded message]";
+            parent.appendChild(blinded);
+            return;
+        }
+        if (text.slice(0, 4) === "*** " && text.slice(-4) === " ***" && text.length >= 8) {
+            var action = document.createElement("span");
+            action.className = "action";
+            appendLinkified(action, text.slice(4, -4));
+            parent.appendChild(action);
+            return;
+        }
+        appendLinkified(parent, text);
+    }
+
     function appendMessage(msg) {
         var line = document.createElement("div");
         line.className = "line";
@@ -93,7 +143,7 @@
 
         var text = document.createElement("span");
         text.className = "msg";
-        text.textContent = msg.text; // textContent: no HTML injection possible
+        appendBody(text, msg.text);
 
         line.appendChild(time);
         line.appendChild(nick);
