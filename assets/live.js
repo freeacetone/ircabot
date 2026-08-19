@@ -47,7 +47,9 @@
     var polling = false; // a request is in flight: never overlap, or lastId
                          // would be reused and the same messages fetched twice
     var POLL_MS = 3000;
+    var POLL_HIDDEN_MS = 20000; // nobody is looking: keep the tab alive, cheaply
     var MAX_LINES = 500;
+    var timer = null;
 
     // Dots advance only when a real request is sent to the server;
     // green while the network works, red otherwise (as in v1)
@@ -207,6 +209,25 @@
         request.send();
     }
 
+    // A hidden tab (switched away, minimized) falls back to the slow interval;
+    // coming back polls at once, so the reader never waits it out.
+    function schedule() {
+        if (timer !== null) {
+            clearTimeout(timer);
+        }
+        timer = setTimeout(function () {
+            poll();
+            schedule();
+        }, document.hidden ? POLL_HIDDEN_MS : POLL_MS);
+    }
+
+    document.addEventListener("visibilitychange", function () {
+        if (!document.hidden) {
+            poll();
+        }
+        schedule();
+    });
+
     poll();
-    setInterval(poll, POLL_MS);
+    schedule();
 })();
