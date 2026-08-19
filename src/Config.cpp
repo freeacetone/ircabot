@@ -137,7 +137,7 @@ QString Config::exampleText()
     },
 
     "voicegate": {
-        "_comment": "On moderated (+m) channels where the bot is an operator, a new user must solve the captcha at <captcha_url>/~captcha/<nick> to be voiced (+v). Voice is granted server-wide. set_moderated: bot sets +m itself once it is op. captcha_url empty -> derived from web address:port",
+        "_comment": "On moderated (+m) channels where the bot is an operator, a new user must solve the captcha at <captcha_url>/~captcha/<nick> to be voiced (+v). Voice is granted server-wide. set_moderated: bot sets +m itself once it is op. captcha_url empty -> derived from web address:port. pm_interval_hours 0 -> no automatic PM at all",
         "enabled": true,
         "set_moderated": true,
         "captcha_url": "",

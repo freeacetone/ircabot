@@ -17,7 +17,8 @@ desperately.
   disables), `web{}` (address, port,
   service name/emoji, `realtime_disabled`), `voicegate{}` (`enabled`,
   `set_moderated`, `captcha_url`, `captcha_length`, `connect_delay_seconds`,
-  `offline_ttl_hours`, `pm_interval_hours`, `private_message`),
+  `offline_ttl_hours`, `pm_interval_hours` (`0` disables the automatic PM),
+  `private_message`),
   `defaults{}` (nick/user/real_name/
   password for all servers), `triggers{}` (request -> answer) and `servers[]`
   (name, address, port, optional `ssl`, channels, per-server overrides).
@@ -70,7 +71,10 @@ desperately.
   the user (`+v`) on every gated channel of that server. The grant is bound to
   nick + an md5 of the host and stored under `data/_voicegate/<server>/`; it
   survives a reconnect (the bot re-voices automatically) and is dropped after
-  `offline_ttl_hours` offline. The captcha is stateless - the challenge lives in
+  `offline_ttl_hours` offline. `pm_interval_hours` is the minimum delay between
+  two captcha PMs to the same user; `0` turns the automatic PM off completely,
+  leaving the rest of the gate (`+m`, voicing, the link sent in answer to a
+  user's own PM) working. The captcha is stateless - the challenge lives in
   an AES-256 encrypted, signed nonce in the form, so no challenge database is
   kept. The bot announces the mode with `/me Voice gate mode activated`;
 - Customizable pages: `data/_ircabot/web/main_page.txt` (with `%LOCAL_TIME%`

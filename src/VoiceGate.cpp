@@ -155,6 +155,9 @@ void VoiceGate::markOffline(const QString& server, const QString& nick, const QS
 bool VoiceGate::pmDue(const QString& server, const QString& nick, const QString& host)
 {
     const QMutexLocker locker(&m_mutex);
+    if (m_config.pmIntervalHours <= 0) {
+        return false; // the automatic PM is off: no record, no captcha link
+    }
     const QString dir = recordDir(server, nick, host);
     QDir().mkpath(dir);
     const QString file = dir + QStringLiteral("last_pm");

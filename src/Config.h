@@ -45,7 +45,7 @@ struct VoiceGateConfig
     int connectDelaySeconds = 10; // wait after a join before the first captcha PM
     int captchaLength = 4;        // number of characters in the captcha image
     int offlineTtlHours = 24;     // drop a voiced user's grant after this offline time
-    int pmIntervalHours = 24;     // do not PM the same user more often than this
+    int pmIntervalHours = 24;     // do not PM the same user more often; 0 = never PM
     QString captchaUrl;           // public base URL for the PM link; empty -> derive
     QString privateMessage;       // captcha PM body; the link is appended after it
 };
