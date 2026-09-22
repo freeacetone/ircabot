@@ -156,6 +156,10 @@ QByteArray renderCaptchaPng(const QString& text)
 
     constexpr int GLYPH_W = 5;
     constexpr int GLYPH_H = 7;
+    // Strokes this thick stay legible under noise drawn at SPECKLE_SIDE: the
+    // reader tells a glyph from a speckle by weight, not by colour any more.
+    constexpr int SCALE_MIN = 7;
+    constexpr int SCALE_SPAN = 2; // scale is SCALE_MIN .. SCALE_MIN + SPAN - 1
     constexpr int padX = 16;
     constexpr int H = 80;
 
@@ -173,14 +177,14 @@ QByteArray renderCaptchaPng(const QString& text)
         if (gi < 0) {
             continue;
         }
-        const int scale = 5 + rng->bounded(2);              // 5..6 -> gentle size variation
+        const int scale = SCALE_MIN + rng->bounded(SCALE_SPAN);
         const int gw = GLYPH_W * scale;
         const int gh = GLYPH_H * scale;
         const int x = pen + rng->bounded(-2, 3);
         const int y = qBound(2, (H - gh) / 2 + rng->bounded(-3, 4), H - gh - 2);
         const double shear = rng->bounded(-20, 21) / 100.0; // slant -0.20..0.20
         glyphs.push_back({gi, scale, x, y, shear});
-        pen += gw + rng->bounded(4);                        // small gap, glyphs stay separate
+        pen += gw + rng->bounded(4);                        // the slant still makes neighbours touch
     }
 
     int W = padX * 2;
@@ -219,11 +223,25 @@ QByteArray renderCaptchaPng(const QString& text)
         }
     }
 
-    // Noise: dim speckles and a few crossing lines over the glyphs.
-    for (int k = 0; k < W * H / 120; ++k) {
-        setPx(rng->bounded(W), rng->bounded(H), 2);
+    // Noise, in the ink colour and with the weight of a stroke. A separate
+    // palette entry used to let any reader drop every speckle and line with a
+    // single colour test, and one-pixel dots fell out just as cheaply to a
+    // "has too few neighbours" filter; both have to look like glyph pixels.
+    constexpr int SPECKLE_SIDE = 3;          // square speckle, px
+    constexpr int PIXELS_PER_SPECKLE = 1200;  // one speckle per this much canvas
+    constexpr int LINE_COUNT = 1;
+    constexpr int LINE_HALF_WIDTH = 1;       // line is 2*half + 1 px thick
+
+    for (int k = 0; k < W * H / PIXELS_PER_SPECKLE; ++k) {
+        const int bx = rng->bounded(W);
+        const int by = rng->bounded(H);
+        for (int dy = 0; dy < SPECKLE_SIDE; ++dy) {
+            for (int dx = 0; dx < SPECKLE_SIDE; ++dx) {
+                setPx(bx + dx, by + dy, 1);
+            }
+        }
     }
-    for (int l = 0; l < 2; ++l) {
+    for (int l = 0; l < LINE_COUNT; ++l) {
         int x1 = rng->bounded(W);
         int y1 = rng->bounded(H);
         const int x2 = rng->bounded(W);
@@ -234,7 +252,11 @@ QByteArray renderCaptchaPng(const QString& text)
         const int sy = y1 < y2 ? 1 : -1;
         int err = dx + dy;
         while (true) {
-            setPx(x1, y1, 2);
+            for (int oy = -LINE_HALF_WIDTH; oy <= LINE_HALF_WIDTH; ++oy) {
+                for (int ox = -LINE_HALF_WIDTH; ox <= LINE_HALF_WIDTH; ++ox) {
+                    setPx(x1 + ox, y1 + oy, 1);
+                }
+            }
             if (x1 == x2 && y1 == y2) {
                 break;
             }
@@ -267,10 +289,9 @@ QByteArray renderCaptchaPng(const QString& text)
     appendChunk(png, "IHDR", ihdr);
 
     QByteArray plte;
-    static const unsigned char PAL[3][3] = {
+    static const unsigned char PAL[2][3] = {
         {0x0d, 0x0c, 0x0b}, // 0 background (near-black)
-        {0xe8, 0xa3, 0x3d}, // 1 ink (amber)
-        {0x6a, 0x5f, 0x4a}, // 2 noise (dim)
+        {0xe8, 0xa3, 0x3d}, // 1 ink - glyphs and noise alike
     };
     for (const auto& c : PAL) {
         plte.append(static_cast<char>(c[0]));
