@@ -11,20 +11,20 @@
 
 namespace ircabot {
 
-// Per-client failed-attempt counter for the captcha form. An entry is a short
+// Per-client attempt counter for the captcha form. An entry is a short
 // key plus 12 bytes of state, dropped as soon as it stops meaning anything:
 // window expired, block expired, or the client solved the captcha.
 class AttemptLimiter
 {
 public:
-    AttemptLimiter(int maxFails, int windowSeconds, int blockSeconds);
+    AttemptLimiter(int maxAttempts, int windowSeconds, int blockSeconds);
 
     // Seconds left on the block, 0 when the client may try.
     int blockedFor(const QString& client) const;
 
-    // Counts one wrong answer. Returns the block length in seconds when this
-    // attempt triggered a block, 0 otherwise.
-    int registerFailure(const QString& client);
+    // Counts one attempt - a challenge handed out or a wrong answer. Returns the
+    // block length in seconds when this attempt triggered a block, 0 otherwise.
+    int registerAttempt(const QString& client);
 
     void forget(const QString& client);
 
@@ -33,7 +33,7 @@ private:
     {
         quint32 windowStart = 0;  // secs since epoch
         quint32 blockedUntil = 0; // secs since epoch, 0 = not blocked
-        quint16 fails = 0;
+        quint16 attempts = 0;
     };
 
     // Distinct I2P destinations are cheap to create, so the map needs a ceiling
@@ -42,7 +42,7 @@ private:
 
     void sweep(qint64 now);
 
-    const int m_maxFails;
+    const int m_maxAttempts;
     const int m_windowSeconds;
     const int m_blockSeconds;
     mutable QMutex m_mutex;

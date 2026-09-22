@@ -39,8 +39,8 @@ public:
     bool listen();
 
 private:
-    static constexpr int CAPTCHA_MAX_FAILS = 10;
-    static constexpr int CAPTCHA_FAIL_WINDOW_SEC = 60;
+    static constexpr int CAPTCHA_MAX_ATTEMPTS = 10;
+    static constexpr int CAPTCHA_ATTEMPT_WINDOW_SEC = 60;
     static constexpr int CAPTCHA_BLOCK_SEC = 60;
 
     struct CachedImage { QByteArray mime; QByteArray data; };
@@ -69,7 +69,7 @@ private:
     QHash<QString, std::shared_ptr<LogStore>> m_stores;
     VoiceGate* m_voiceGate;
     Captcha m_captcha;
-    AttemptLimiter m_captchaLimiter{CAPTCHA_MAX_FAILS, CAPTCHA_FAIL_WINDOW_SEC, CAPTCHA_BLOCK_SEC};
+    AttemptLimiter m_captchaLimiter{CAPTCHA_MAX_ATTEMPTS, CAPTCHA_ATTEMPT_WINDOW_SEC, CAPTCHA_BLOCK_SEC};
     QHttpServer m_server;
 
     // Custom pages and images are read once and then pinned in RAM for the

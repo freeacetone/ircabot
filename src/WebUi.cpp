@@ -691,6 +691,19 @@ QHttpServerResponse WebUi::serveCaptcha(const render::Site& site, const QString&
 
     const int length = m_voiceGate->config().captchaLength;
 
+    // Every challenge handed out costs one attempt, whether it was asked for by
+    // a GET or follows a wrong answer. Counting only wrong answers made a fresh
+    // image free: a reader could fetch challenges until one came out legible and
+    // answer only that, never spending a single attempt on the ones it skipped.
+    const auto issueChallenge = [&](const QString& message) {
+        if (const int blocked = m_captchaLimiter.registerAttempt(client); blocked > 0) {
+            return blockedPage(blocked);
+        }
+        const Captcha::Challenge c = m_captcha.issue(identity, length, CAPTCHA_TTL_SEC);
+        return html(render::captchaPage(site, server, serverName, nick, hostHash,
+                                        c.answer, c.nonce, message, false));
+    };
+
     if (isPost) {
         const QUrlQuery form(QString::fromUtf8(body));
         const QString nonce = form.queryItemValue(QStringLiteral("nonce"), QUrl::FullyDecoded);
@@ -704,16 +717,10 @@ QHttpServerResponse WebUi::serveCaptcha(const render::Site& site, const QString&
                     + QStringLiteral(" shortly."),
                 true));
         }
-        if (const int blocked = m_captchaLimiter.registerFailure(client); blocked > 0) {
-            return blockedPage(blocked);
-        }
-        const Captcha::Challenge c = m_captcha.issue(identity, length, CAPTCHA_TTL_SEC);
-        return html(render::captchaPage(site, server, serverName, nick, hostHash, c.answer, c.nonce,
-                                        QStringLiteral("Wrong answer, please try again."), false));
+        return issueChallenge(QStringLiteral("Wrong answer, please try again."));
     }
 
-    const Captcha::Challenge c = m_captcha.issue(identity, length, CAPTCHA_TTL_SEC);
-    return html(render::captchaPage(site, server, serverName, nick, hostHash, c.answer, c.nonce, QString(), false));
+    return issueChallenge(QString());
 }
 
 } // namespace ircabot

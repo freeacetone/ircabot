@@ -82,7 +82,10 @@ desperately.
   leaving the rest of the gate (`+m`, voicing, the link sent in answer to a
   user's own PM) working. The captcha is stateless - the challenge lives in
   an AES-256 encrypted, signed nonce in the form, so no challenge database is
-  kept. The bot announces the mode with `/me Voice gate mode activated`;
+  kept. Every challenge handed out counts against a per-client limit (10 a
+  minute, then a minute's pause), so fetching images until an easy one turns up
+  costs exactly as much as answering them.
+  The bot announces the mode with `/me Voice gate mode activated`;
   an operator who takes a voice back by hand (`-v`) overrules the gate: the
   grant is deleted instead of re-issued, the channel is told with
   `/me Voice of <nick> revoked by a moderator of this channel`, and the next

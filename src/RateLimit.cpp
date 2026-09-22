@@ -19,8 +19,8 @@ qint64 nowSec()
 
 } // namespace
 
-AttemptLimiter::AttemptLimiter(int maxFails, int windowSeconds, int blockSeconds)
-    : m_maxFails(maxFails),
+AttemptLimiter::AttemptLimiter(int maxAttempts, int windowSeconds, int blockSeconds)
+    : m_maxAttempts(maxAttempts),
       m_windowSeconds(windowSeconds),
       m_blockSeconds(blockSeconds)
 {
@@ -58,7 +58,7 @@ int AttemptLimiter::blockedFor(const QString& client) const
     return static_cast<int>(left);
 }
 
-int AttemptLimiter::registerFailure(const QString& client)
+int AttemptLimiter::registerAttempt(const QString& client)
 {
     if (client.isEmpty()) {
         return 0;
@@ -79,11 +79,11 @@ int AttemptLimiter::registerFailure(const QString& client)
         *it = Entry{static_cast<quint32>(now), 0, 0};
     }
 
-    if (++it->fails < m_maxFails) {
+    if (++it->attempts < m_maxAttempts) {
         return 0;
     }
     it->blockedUntil = static_cast<quint32>(now + m_blockSeconds);
-    it->fails = 0;
+    it->attempts = 0;
     return m_blockSeconds;
 }
 
