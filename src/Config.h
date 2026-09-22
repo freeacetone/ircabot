@@ -12,13 +12,16 @@
 
 namespace ircabot {
 
-// One logged channel. The language tag becomes the <html lang> of that
+// One channel the bot joins. The language tag becomes the <html lang> of that
 // channel's log pages, so a browser can offer to translate a chat that is
 // known to be held in one language; the interface itself stays English.
+// A moderation-only channel is joined for the voice gate alone: nothing is
+// written to disk and the web interface never exposes it as a log.
 struct ChannelConfig
 {
     QString name;                        // with leading '#'
     QString lang = QStringLiteral("en"); // BCP47 tag, "en" unless overridden
+    bool moderationOnly = false;         // join to moderate, never log
 };
 
 struct ServerConfig
@@ -50,9 +53,10 @@ struct VoiceGateConfig
     QString privateMessage;       // captcha PM body; the link is appended after it
 };
 
-// Channel names alone, in config order, for the consumers that have no use for
-// the per-channel language (the log store, the JOIN/NAMES loops).
-QStringList channelNames(const QList<ChannelConfig>& channels);
+// Names of the channels that are actually logged, in config order: what the
+// log store has to create directories for. Moderation-only channels are left
+// out, so no folder of theirs ever appears on disk.
+QStringList loggedChannelNames(const QList<ChannelConfig>& channels);
 
 // JSON configuration file.
 // Top-level keys: data_path, web{}, defaults{}, triggers{}, servers[].

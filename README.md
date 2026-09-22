@@ -29,6 +29,12 @@ desperately.
   chat known to be held in that language; the interface and the nicks are marked
   `lang="en"` and stay untouched. A channel object with a missing `name`, an
   unknown key or a malformed language tag stops the service at startup.
+- **Moderation-only channels**: `{"name": "#staff", "moderation_only": true}`
+  joins the channel for the voice gate alone. Nothing said there is logged - no
+  directory under `data/`, no line on disk, not even a console echo - and the
+  channel is absent from the sidebar and from every log URL. It is named once,
+  at the end of the channel list on the server description page, marked
+  `(moderation only)`.
 - **URL scheme is compatible with v1/v2**: old links to
   `/<server>/<channel>/yyyy/MM/dd` (and `.txt`), `/~realtime/...`, `/~images/...`
   keep working.

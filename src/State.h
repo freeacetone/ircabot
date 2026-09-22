@@ -36,7 +36,8 @@ struct ServerSnapshot
     QString slug;
     bool connected = false;
     QString botNick;
-    QStringList channels; // without '#', stable config order
+    QStringList channels;           // logged, without '#', stable config order
+    QStringList moderationChannels; // joined for moderation only, never logged
     QHash<QString, ChannelSnapshot> byChannel;
 };
 

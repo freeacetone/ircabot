@@ -51,9 +51,10 @@ int lineNumberAt(const QByteArray& raw, int offset)
 }
 
 // One entry of "channels": either a bare "#name" string or an object
-// {"name": "#name", "lang": "ru"}. A malformed object is a configuration
-// mistake that would silently change what the service does, so it stops the
-// service at startup instead of being papered over with a default.
+// {"name": "#name", "lang": "ru", "moderation_only": false}. A malformed object
+// is a configuration mistake that would silently change what the service does,
+// so it stops the service at startup instead of being papered over with a
+// default.
 ChannelConfig readChannel(const QJsonValue& value, const QString& context)
 {
     ChannelConfig channel;
@@ -65,10 +66,11 @@ ChannelConfig readChannel(const QJsonValue& value, const QString& context)
             if (it.key().startsWith('_')) { // "_comment" and friends
                 continue;
             }
-            if (it.key() != QStringLiteral("name") && it.key() != QStringLiteral("lang")) {
+            if (it.key() != QStringLiteral("name") && it.key() != QStringLiteral("lang")
+                && it.key() != QStringLiteral("moderation_only")) {
                 throw std::runtime_error(
                     ("[" + context + "] Channel entry has an unknown key '" + it.key()
-                     + "': only 'name' and 'lang' are allowed").toStdString());
+                     + "': only 'name', 'lang' and 'moderation_only' are allowed").toStdString());
             }
         }
         channel.name = obj.value(QStringLiteral("name")).toString();
@@ -90,6 +92,7 @@ ChannelConfig readChannel(const QJsonValue& value, const QString& context)
                         .toStdString());
             }
         }
+        channel.moderationOnly = obj.value(QStringLiteral("moderation_only")).toBool(false);
     } else {
         throw std::runtime_error(
             ("[" + context + "] Channel entry must be a string or an object like "
@@ -105,12 +108,14 @@ ChannelConfig readChannel(const QJsonValue& value, const QString& context)
 
 } // namespace
 
-QStringList channelNames(const QList<ChannelConfig>& channels)
+QStringList loggedChannelNames(const QList<ChannelConfig>& channels)
 {
     QStringList names;
     names.reserve(channels.size());
     for (const ChannelConfig& channel : channels) {
-        names.push_back(channel.name);
+        if (!channel.moderationOnly) {
+            names.push_back(channel.name);
+        }
     }
     return names;
 }
@@ -165,12 +170,12 @@ QString Config::exampleText()
     "servers": [
         {
             "_comment": "nick, user, real_name, password and triggers can be overridden per server",
-            "_comment_channels": "A channel is \"#name\" or {\"name\": \"#name\", \"lang\": \"ru\"}. lang (default en) becomes the <html lang> of that channel's log pages, so a browser can offer to translate a chat held in that language",
+            "_comment_channels": "A channel is \"#name\" or {\"name\": \"#name\", \"lang\": \"ru\"}. lang (default en) becomes the <html lang> of that channel's log pages, so a browser can offer to translate a chat held in that language. moderation_only true: the bot joins to moderate (voice gate) but writes no log, keeps no folder and shows no chat page - the channel is only listed on the server description page",
             "name": "Displayed server name",
             "address": "127.0.0.1",
             "port": 6667,
             "ssl": false,
-            "channels": ["#general", {"name": "#test", "lang": "ru"}]
+            "channels": ["#general", {"name": "#test", "lang": "ru"}, {"name": "#staff", "moderation_only": true}]
         }
     ]
 }
@@ -318,7 +323,6 @@ void Config::parse(const QByteArray& raw)
             qWarning().noquote() << "[" + srv.displayName + "] ignored (empty 'channels')";
             continue;
         }
-
         srv.nick = s.value(QStringLiteral("nick")).toString(defaultNick).replace(' ', '_');
         srv.user = s.value(QStringLiteral("user")).toString(defaultUser);
         srv.realName = s.value(QStringLiteral("real_name")).toString(defaultRealName);
@@ -333,6 +337,13 @@ void Config::parse(const QByteArray& raw)
         for (auto it = globalTriggers.constBegin(); it != globalTriggers.constEnd(); ++it) {
             if (!srv.triggers.contains(it.key())) {
                 srv.triggers[it.key()] = it.value();
+            }
+        }
+
+        for (const ChannelConfig& channel : srv.channels) {
+            if (channel.moderationOnly) {
+                qInfo().noquote() << "[" + srv.displayName + "] Moderation only, not logged:"
+                                  << channel.name;
             }
         }
 

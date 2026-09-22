@@ -4,6 +4,9 @@
     "_comment_log_local_time": "Day rotation timezone: false (default) = UTC, true = server local time",
     "log_local_time": false,
 
+    "_comment_log_cache_mb": "Archive log files kept in RAM (LRU), in MB; 0 disables. Today's file is never cached",
+    "log_cache_mb": 30,
+
     "web": {
         "_comment": "JS is used only on /~realtime/ pages; realtime_disabled removes it entirely",
         "address": "127.0.0.1",
@@ -42,12 +45,12 @@
     "servers": [
         {
             "_comment": "nick, user, real_name, password and triggers can be overridden per server",
-            "_comment_channels": "A channel is \"#name\" or {\"name\": \"#name\", \"lang\": \"ru\"}. lang (default en) becomes the <html lang> of that channel's log pages, so a browser can offer to translate a chat held in that language",
+            "_comment_channels": "A channel is \"#name\" or {\"name\": \"#name\", \"lang\": \"ru\"}. lang (default en) becomes the <html lang> of that channel's log pages, so a browser can offer to translate a chat held in that language. moderation_only true: the bot joins to moderate (voice gate) but writes no log, keeps no folder and shows no chat page - the channel is only listed on the server description page",
             "name": "Displayed server name",
             "address": "127.0.0.1",
             "port": 6667,
             "ssl": false,
-            "channels": ["#general", {"name": "#test", "lang": "ru"}]
+            "channels": ["#general", {"name": "#test", "lang": "ru"}, {"name": "#staff", "moderation_only": true}]
         }
     ]
 }

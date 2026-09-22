@@ -118,6 +118,7 @@ private:
     QHash<QString, QStringList> m_online;        // "#channel" -> nicks with prefixes
     QHash<QString, QStringList> m_namesAccum;    // NAMES replies being accumulated
     QSet<QString> m_joined;                      // really joined channels, lowercased
+    QSet<QString> m_moderationOnly;              // joined to moderate only, lowercased
 
     // Voice-gate bookkeeping (lowercased keys throughout).
     QHash<QString, QString> m_userHost;          // nick -> host, from JOIN/WHO

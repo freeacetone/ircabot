@@ -360,6 +360,11 @@ QString aboutPage(const Site& site, const ServerSnapshot& server, const QString&
     for (const QString& ch : server.channels) {
         content += QStringLiteral("<a href=\"/%1/%2\">#%3</a>\n").arg(server.slug, ch, esc(ch));
     }
+    // Moderation-only channels close the list: the bot sits in them for the
+    // voice gate alone, so they are named but lead nowhere - there is no log.
+    for (const QString& ch : server.moderationChannels) {
+        content += QStringLiteral("<span class=\"chan-mod\">#%1 (moderation only)</span>\n").arg(esc(ch));
+    }
     content += QStringLiteral("</div></section>\n");
 
     return page(site, {server.slug, {}}, server.displayName, content);

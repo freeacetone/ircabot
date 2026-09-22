@@ -19,6 +19,13 @@ void RuntimeState::registerServer(const QString& displayName, const QString& slu
     for (const ChannelConfig& channel : channels) {
         QString ch = channel.name;
         ch.remove('#');
+        // Only logged channels go into `channels`: that list is what the sidebar
+        // draws and what every web route validates against, so a moderation-only
+        // channel has no page to reach even though the bot sits in it.
+        if (channel.moderationOnly) {
+            entry.data.moderationChannels.push_back(ch);
+            continue;
+        }
         entry.data.channels.push_back(ch);
         ChannelSnapshot snapshot;
         snapshot.lang = channel.lang;
@@ -51,8 +58,12 @@ void RuntimeState::setTopic(const QString& slug, const QString& channel, const Q
 {
     const QWriteLocker locker(&m_lock);
     const auto it = m_servers.find(slug);
-    if (it != m_servers.end()) {
-        it->data.byChannel[channel].topic = topic;
+    if (it == m_servers.end()) {
+        return;
+    }
+    const auto chan = it->data.byChannel.find(channel);
+    if (chan != it->data.byChannel.end()) { // unknown here means moderation-only
+        chan->topic = topic;
     }
 }
 
@@ -60,8 +71,12 @@ void RuntimeState::setOnline(const QString& slug, const QString& channel, const 
 {
     const QWriteLocker locker(&m_lock);
     const auto it = m_servers.find(slug);
-    if (it != m_servers.end()) {
-        it->data.byChannel[channel].online = sortedUsers;
+    if (it == m_servers.end()) {
+        return;
+    }
+    const auto chan = it->data.byChannel.find(channel);
+    if (chan != it->data.byChannel.end()) { // unknown here means moderation-only
+        chan->online = sortedUsers;
     }
 }
 

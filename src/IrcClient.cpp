@@ -68,6 +68,12 @@ IrcClient::IrcClient(const ServerConfig& config, RuntimeState* state, LogStore* 
     m_sendTimer.setSingleShot(true);
     connect(&m_sendTimer, &QTimer::timeout, this, &IrcClient::onSendQueue);
 
+    for (const ChannelConfig& channel : m_config.channels) {
+        if (channel.moderationOnly) {
+            m_moderationOnly.insert(channel.name.toLower());
+        }
+    }
+
     m_state->registerServer(m_config.displayName, m_config.slug, m_config.channels);
     m_state->setBotNick(m_config.slug, m_config.nick);
 }
@@ -614,6 +620,12 @@ void IrcClient::handlePrivmsg(const IrcMessage& msg)
         return;
     }
 
+    // Joined for moderation alone: what is said here is neither written to disk
+    // nor published anywhere, not even to the bot's own console.
+    if (m_moderationOnly.contains(target.toLower())) {
+        return;
+    }
+
     if (text.startsWith('.')) {
         text = QString::fromUtf8(BLINDED_MESSAGE_MARKER);
     } else if (text.startsWith(QStringLiteral("\x01" "ACTION")) && text.endsWith('\x01')) {
@@ -638,11 +650,16 @@ void IrcClient::handleTrigger(const QString& channel, const QString& nick, const
     }
     m_lastTriggerTime = now;
 
+    // A moderation-only channel has no log page of its own, so the closest
+    // truthful target for %CHANNEL_FOR_URL% is the server's own page.
+    const QString channelUrl = m_moderationOnly.contains(channel.toLower())
+                                   ? m_config.slug
+                                   : m_config.slug + '/' + QString(channel).remove('#');
+
     for (auto it = m_config.triggers.constBegin(); it != m_config.triggers.constEnd(); ++it) {
         if (request.contains(it.key(), Qt::CaseInsensitive)) {
             QString answer = it.value();
-            answer.replace(QString::fromUtf8(TRIGGER_CHANNEL_FOR_URL),
-                           m_config.slug + '/' + QString(channel).remove('#'));
+            answer.replace(QString::fromUtf8(TRIGGER_CHANNEL_FOR_URL), channelUrl);
             answer.replace(QString::fromUtf8(TRIGGER_VERSION), QString::fromUtf8(VERSION));
             send("PRIVMSG " + channel + " :" + nick + ", " + answer);
             return;
