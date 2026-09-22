@@ -549,9 +549,8 @@ body { overflow: hidden; } /* the page itself never scrolls */
 .panel.error h1 { font-size: 42px; color: var(--amber); margin: 0 0 10px; }
 
 .card-chans { display: flex; flex-direction: column; gap: 2px; }
-.card-chans a { color: var(--ink-dim); width: fit-content; }
+.card-chans a, .card-chans .chan-mod { color: var(--ink-dim); width: fit-content; }
 .card-chans a:hover { color: var(--amber); }
-.card-chans .chan-mod { color: var(--ink-faint); }
 
 /* Archive listings: year/month/day rows with log weight */
 .panel.arch { padding: 8px 0; }
