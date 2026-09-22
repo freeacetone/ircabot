@@ -77,6 +77,7 @@ private:
     void sendAction(const QString& target, const QString& text);
     void grantVoice(const QString& channel, const QString& nick);
     void sendCaptchaPm(const QString& nick, const QString& host);
+    void handleVoiceRemovals(const IrcMessage& msg); // an operator's "-v" ends the grant
     void userWentOffline(const QString& nick);             // start TTL, forget host
 
     static constexpr int RECONNECT_DELAY_MS = 10000;

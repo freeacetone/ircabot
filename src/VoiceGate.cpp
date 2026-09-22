@@ -126,6 +126,23 @@ void VoiceGate::grant(const QString& server, const QString& nick, const QString&
     writeNum(dir + QStringLiteral("offline_since"), 0);
 }
 
+bool VoiceGate::revoke(const QString& server, const QString& nick, const QString& host)
+{
+    const QMutexLocker locker(&m_mutex);
+    const QString dir = recordDir(server, nick, host);
+    if (readNum(dir + QStringLiteral("granted_at")) <= 0) {
+        return false;
+    }
+    QFile::remove(dir + QStringLiteral("granted_at"));
+    QFile::remove(dir + QStringLiteral("offline_since"));
+    // A solve still waiting for a host would re-grant on the very next tick.
+    m_solved.remove(solvedKey(server, nick, hostHash(host)));
+    // Keep the captcha invitation on its normal cooldown: a revocation must not
+    // turn into a fresh captcha link a second later.
+    writeNum(dir + QStringLiteral("last_pm"), nowSec());
+    return true;
+}
+
 void VoiceGate::markOnline(const QString& server, const QString& nick, const QString& host)
 {
     const QMutexLocker locker(&m_mutex);

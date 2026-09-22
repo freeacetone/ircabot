@@ -83,6 +83,10 @@ desperately.
   user's own PM) working. The captcha is stateless - the challenge lives in
   an AES-256 encrypted, signed nonce in the form, so no challenge database is
   kept. The bot announces the mode with `/me Voice gate mode activated`;
+  an operator who takes a voice back by hand (`-v`) overrules the gate: the
+  grant is deleted instead of re-issued, the channel is told with
+  `/me Voice of <nick> revoked by a moderator of this channel`, and the next
+  captcha invitation waits out the usual `pm_interval_hours`;
 - Customizable pages: `data/_ircabot/web/main_page.txt` (with `%LOCAL_TIME%`
   and `%DAILY_REQUESTS%` placeholders) and a per-server page
   `data/<server>/about_server.txt` - plain HTML, edited on disk. Custom images

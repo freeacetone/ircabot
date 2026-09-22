@@ -44,6 +44,9 @@ public:
     // after going offline.
     bool isGranted(const QString& server, const QString& nick, const QString& host) const;
     void grant(const QString& server, const QString& nick, const QString& host);
+    // An operator took the voice away by hand. Drops the grant so the gate does
+    // not hand it straight back, and returns true if there was one to drop.
+    bool revoke(const QString& server, const QString& nick, const QString& host);
     void markOnline(const QString& server, const QString& nick, const QString& host);
     void markOffline(const QString& server, const QString& nick, const QString& host);
 

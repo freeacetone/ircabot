@@ -23,6 +23,15 @@ constexpr const char* BLINDED_MESSAGE_MARKER = "Blinded message";
 constexpr const char* TRIGGER_CHANNEL_FOR_URL = "%CHANNEL_FOR_URL%";
 constexpr const char* TRIGGER_VERSION = "%VERSION%";
 
+// Channel modes that carry a parameter: the prefix modes, the list modes and
+// the key. The user limit takes one only while it is being set, hence its own
+// constant. Any other letter is read as a flag - servers define their own, and
+// a wrong guess can only make the walk pick up a parameter that is not a
+// voiced nick of ours, which is then ignored.
+const QString PARAM_MODES = QStringLiteral("qaohvbeIk");
+constexpr QLatin1Char LIMIT_MODE('l');
+constexpr QLatin1Char VOICE_MODE('v');
+
 int nickRank(const QString& nick)
 {
     if (nick.isEmpty()) {
@@ -572,6 +581,9 @@ void IrcClient::processLine(const QString& line)
     if (msg.command == QStringLiteral("MODE")) {
         // Channel mode change can grant/remove prefixes or toggle +m: refresh both
         if (!msg.params.isEmpty() && msg.params.first().startsWith('#')) {
+            if (voiceGateActive()) {
+                handleVoiceRemovals(msg);
+            }
             send("NAMES " + msg.params.first(), false);
             if (voiceGateActive()) {
                 send("MODE " + msg.params.first(), false);
@@ -747,6 +759,39 @@ void IrcClient::grantVoice(const QString& channel, const QString& nick)
     }
     publishOnline(channel);
     consoleLog("Voice gate: voiced " + nick + " on " + channel);
+}
+
+// A "-v" the bot did not ask for is an operator overruling the gate. Re-issuing
+// the voice would turn that into a fight the operator cannot win, so the grant
+// is dropped instead: the user is back to an unverified one, server-wide.
+void IrcClient::handleVoiceRemovals(const IrcMessage& msg)
+{
+    const QString& channel = msg.params.first();
+    bool adding = true;
+    qsizetype arg = 2; // params: <channel> <modes> <mode arguments...>
+    for (const QChar mode : msg.params.value(1)) {
+        if (mode == QLatin1Char('+') || mode == QLatin1Char('-')) {
+            adding = (mode == QLatin1Char('+'));
+            continue;
+        }
+        if (!PARAM_MODES.contains(mode) && !(adding && mode == LIMIT_MODE)) {
+            continue;
+        }
+        if (arg >= msg.params.size()) {
+            return; // the line promises more arguments than it carries
+        }
+        const QString nick = msg.params.at(arg++);
+        if (adding || mode != VOICE_MODE) {
+            continue;
+        }
+        const QString host = m_userHost.value(nick.toLower());
+        if (host.isEmpty() || !m_voiceGate->revoke(m_config.slug, nick, host)) {
+            continue; // not a voice this gate handed out
+        }
+        sendAction(channel, "Voice of " + nick + " revoked by a moderator of this channel");
+        consoleLog("Voice gate: grant of " + nick + " dropped, " + msg.prefixNick
+                   + " removed the voice on " + channel);
+    }
 }
 
 void IrcClient::sendCaptchaPm(const QString& nick, const QString& host)
