@@ -647,6 +647,7 @@ a.captcha-submit:hover { color: var(--bg-deep); }
 .captcha-note.ok  { color: var(--green); }
 .captcha-note.err { color: var(--red); }
 
+.captcha-policy { color: var(--ink-faint); font-size: 11px; line-height: 1.5; margin: 14px 0 0; }
 .captcha-foot { color: var(--ink-faint); font-size: 12px; margin: 14px 0 0; }
 .captcha-foot a { color: var(--ink-dim); }
 .captcha-foot a:hover { color: var(--amber); }
