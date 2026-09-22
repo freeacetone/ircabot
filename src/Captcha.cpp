@@ -17,8 +17,12 @@ namespace ircabot {
 
 namespace {
 
-// No I, L, O, 0, 1: they read the same on a low-resolution image.
-constexpr const char* ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+// Every pair left here differs in at least 6 of the 35 pixels of the 5x7 font
+// in CaptchaImage.cpp. That drops I, L, O, 0, 1 as before and also F, G, H, N,
+// P, S and 8, whose closest neighbours (S/8 differ in 2 pixels, B/8, F/P and
+// P/R in 3) were unreadable once the glyph was scaled, slanted and crossed by
+// noise. 24 characters still give 24^4 = 331776 four-character challenges.
+constexpr const char* ALPHABET = "ABCDEJKMQRTUVWXYZ2345679";
 constexpr int AES_KEY_LEN = 32; // AES-256
 constexpr int AES_IV_LEN = 16;
 
